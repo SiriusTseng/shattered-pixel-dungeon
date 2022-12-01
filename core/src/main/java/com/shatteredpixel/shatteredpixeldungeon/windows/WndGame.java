@@ -25,6 +25,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
+import com.shatteredpixel.shatteredpixeldungeon.cheats.GameMaster;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
@@ -124,6 +125,10 @@ public class WndGame extends Window {
 		});
 		curBtn.icon(Icons.get(Icons.DISPLAY));
 		if (SPDSettings.intro()) curBtn.enable(false);
+
+		// Cheat Button
+		GameMaster gm = new GameMaster(this);
+		addButton(gm.getEntry());
 
 		resize( WIDTH, pos );
 	}
