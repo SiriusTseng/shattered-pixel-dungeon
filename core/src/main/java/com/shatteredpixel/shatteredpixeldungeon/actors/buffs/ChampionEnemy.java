@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,8 +31,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
-import com.shatteredpixel.shatteredpixeldungeon.utils.BArray;
 import com.watabou.noosa.Image;
+import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
@@ -41,9 +41,11 @@ public abstract class ChampionEnemy extends Buff {
 
 	{
 		type = buffType.POSITIVE;
+		revivePersists = true;
 	}
 
 	protected int color;
+	protected int rays;
 
 	@Override
 	public int icon() {
@@ -57,7 +59,7 @@ public abstract class ChampionEnemy extends Buff {
 
 	@Override
 	public void fx(boolean on) {
-		if (on) target.sprite.aura( color );
+		if (on) target.sprite.aura( color, rays );
 		else target.sprite.clearAura();
 	}
 
@@ -104,7 +106,9 @@ public abstract class ChampionEnemy extends Buff {
 
 		if (Dungeon.mobsToChampion <= 0 && Dungeon.isChallenged(Challenges.CHAMPION_ENEMIES)) {
 			Buff.affect(m, buffCls);
-			m.state = m.WANDERING;
+			if (m.state != m.PASSIVE) {
+				m.state = m.WANDERING;
+			}
 		}
 	}
 
@@ -112,11 +116,14 @@ public abstract class ChampionEnemy extends Buff {
 
 		{
 			color = 0xFF8800;
+			rays = 4;
 		}
 
 		@Override
 		public void onAttackProc(Char enemy) {
-			Buff.affect(enemy, Burning.class).reignite(enemy);
+			if (!Dungeon.level.water[enemy.pos]) {
+				Buff.affect(enemy, Burning.class).reignite(enemy);
+			}
 		}
 
 		@Override
@@ -124,7 +131,7 @@ public abstract class ChampionEnemy extends Buff {
 			//don't trigger when killed by being knocked into a pit
 			if (target.flying || !Dungeon.level.pit[target.pos]) {
 				for (int i : PathFinder.NEIGHBOURS9) {
-					if (!Dungeon.level.solid[target.pos + i]) {
+					if (!Dungeon.level.solid[target.pos + i] && !Dungeon.level.water[target.pos + i]) {
 						GameScene.add(Blob.seed(target.pos + i, 2, Fire.class));
 					}
 				}
@@ -146,6 +153,7 @@ public abstract class ChampionEnemy extends Buff {
 
 		{
 			color = 0x8800FF;
+			rays = 4;
 		}
 
 		@Override
@@ -154,8 +162,20 @@ public abstract class ChampionEnemy extends Buff {
 		}
 
 		@Override
-		public boolean canAttackWithExtraReach( Char enemy ) {
-			return target.fieldOfView[enemy.pos]; //if it can see it, it can attack it.
+		public boolean canAttackWithExtraReach(Char enemy) {
+			if (Dungeon.level.distance( target.pos, enemy.pos ) > 4){
+				return false;
+			} else {
+				boolean[] passable = BArray.not(Dungeon.level.solid, null);
+				for (Char ch : Actor.chars()) {
+					//our own tile is always passable
+					passable[ch.pos] = ch == target;
+				}
+
+				PathFinder.buildDistanceMap(enemy.pos, passable, 4);
+
+				return PathFinder.distance[target.pos] <= 4;
+			}
 		}
 	}
 
@@ -163,11 +183,12 @@ public abstract class ChampionEnemy extends Buff {
 
 		{
 			color = 0x00FF00;
+			rays = 5;
 		}
 
 		@Override
 		public float damageTakenFactor() {
-			return 0.75f;
+			return 0.5f;
 		}
 
 		{
@@ -181,11 +202,12 @@ public abstract class ChampionEnemy extends Buff {
 
 		{
 			color = 0x0088FF;
+			rays = 5;
 		}
 
 		@Override
 		public float damageTakenFactor() {
-			return 0.25f;
+			return 0.2f;
 		}
 
 		@Override
@@ -210,18 +232,20 @@ public abstract class ChampionEnemy extends Buff {
 
 		{
 			color = 0xFFFF00;
+			rays = 6;
 		}
 
 		@Override
 		public float evasionAndAccuracyFactor() {
-			return 3f;
+			return 4f;
 		}
 	}
 
 	public static class Growing extends ChampionEnemy {
 
 		{
-			color = 0xFF0000;
+			color = 0xFF2222; //a little white helps it stick out from background
+			rays = 6;
 		}
 
 		private float multiplier = 1.19f;
@@ -229,7 +253,7 @@ public abstract class ChampionEnemy extends Buff {
 		@Override
 		public boolean act() {
 			multiplier += 0.01f;
-			spend(3*TICK);
+			spend(4*TICK);
 			return true;
 		}
 

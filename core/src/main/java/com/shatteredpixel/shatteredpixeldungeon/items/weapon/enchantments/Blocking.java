@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,10 +24,10 @@ package com.shatteredpixel.shatteredpixeldungeon.items.weapon.enchantments;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.FlavourBuff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.HoldFast;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.ShieldBuff;
+import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
-import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfArcana;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -51,8 +51,12 @@ public class Blocking extends Weapon.Enchantment {
 		// lvl 2 ~ 14%
 		float procChance = (level+4f)/(level+40f) * procChanceMultiplier(attacker);
 		if (Random.Float() < procChance){
+			float powerMulti = Math.max(1f, procChance);
+
 			BlockBuff b = Buff.affect(attacker, BlockBuff.class);
-			b.setShield(attacker.HT/10);
+			int shield = Math.round(powerMulti * (2 + weapon.buffedLvl()));
+			b.setShield(shield);
+			attacker.sprite.showStatusWithIcon(CharSprite.POSITIVE, Integer.toString(shield), FloatingText.SHIELDING);
 			attacker.sprite.emitter().burst(Speck.factory(Speck.LIGHT), 5);
 		}
 		
@@ -63,23 +67,32 @@ public class Blocking extends Weapon.Enchantment {
 	public ItemSprite.Glowing glowing() {
 		return BLUE;
 	}
-	
+
 	public static class BlockBuff extends ShieldBuff {
 
 		{
 			type = buffType.POSITIVE;
+
+			shieldUsePriority = 2;
 		}
+
+		private float left = 5f;
 
 		@Override
 		public boolean act() {
-			detach();
+			left -= HoldFast.buffDecayFactor(target);
+			if (left <= 0) {
+				detach();
+			} else {
+				spend(TICK);
+			}
 			return true;
 		}
 
 		@Override
 		public void setShield(int shield) {
 			super.setShield(shield);
-			postpone(5f);
+			left = 5f;
 		}
 
 		@Override
@@ -103,18 +116,31 @@ public class Blocking extends Weapon.Enchantment {
 
 		@Override
 		public float iconFadePercent() {
-			return Math.max(0, (5f - visualcooldown()) / 5f);
+			return Math.max(0, (5f - left) / 5f);
 		}
 
 		@Override
 		public String iconTextDisplay() {
-			return Integer.toString((int)visualcooldown());
+			return Integer.toString((int)left);
 		}
 
 		@Override
 		public String desc() {
-			return Messages.get(this, "desc", shielding(), dispTurns(visualcooldown()));
+			return Messages.get(this, "desc", shielding(), dispTurns(left));
 		}
-	
+
+		public static String LEFT = "left";
+
+		@Override
+		public void storeInBundle(Bundle bundle) {
+			super.storeInBundle(bundle);
+			bundle.put(LEFT, left);
+		}
+
+		@Override
+		public void restoreFromBundle(Bundle bundle) {
+			super.restoreFromBundle(bundle);
+			left = bundle.getFloat(LEFT);
+		}
 	}
 }

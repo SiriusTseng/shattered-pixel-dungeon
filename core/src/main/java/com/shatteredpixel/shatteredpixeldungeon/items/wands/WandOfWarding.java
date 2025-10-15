@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,15 +28,17 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AllyBuff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Corruption;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Dread;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Sleep;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vertigo;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.spells.Stasis;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.NPC;
+import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.effects.MagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
+import com.shatteredpixel.shatteredpixeldungeon.journal.Bestiary;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
@@ -56,12 +58,21 @@ public class WandOfWarding extends Wand {
 
 	{
 		image = ItemSpriteSheet.WAND_WARDING;
+		usesTargeting = false; //player usually targets wards or spaces, not enemies
 	}
 
 	@Override
 	public int collisionProperties(int target) {
-		if (cursed || !Dungeon.level.heroFOV[target])   return Ballistica.PROJECTILE;
-		else                                            return Ballistica.STOP_TARGET;
+		if (cursed)                                 return super.collisionProperties(target);
+		else if (!Dungeon.level.heroFOV[target])    return Ballistica.PROJECTILE;
+		else                                        return Ballistica.STOP_TARGET;
+	}
+
+	@Override
+	public void execute(Hero hero, String action) {
+		//cursed warding does use targeting as it's just doing regular cursed zaps
+		usesTargeting = cursed && cursedKnown;
+		super.execute(hero, action);
 	}
 
 	private boolean wardAvailable = true;
@@ -74,6 +85,10 @@ public class WandOfWarding extends Wand {
 			if (ch instanceof Ward){
 				currentWardEnergy += ((Ward) ch).tier;
 			}
+		}
+
+		if (Stasis.getStasisAlly() instanceof Ward){
+			currentWardEnergy += ((Ward) Stasis.getStasisAlly()).tier;
 		}
 		
 		int maxWardEnergy = 0;
@@ -119,11 +134,7 @@ public class WandOfWarding extends Wand {
 			}
 		}
 
-		if (!Dungeon.level.passable[target]){
-			GLog.w( Messages.get(this, "bad_location"));
-			Dungeon.level.pressCell(target);
-			
-		} else if (ch != null){
+		if (ch != null){
 			if (ch instanceof Ward){
 				if (wardAvailable) {
 					((Ward) ch).upgrade( buffedLvl() );
@@ -136,6 +147,10 @@ public class WandOfWarding extends Wand {
 				Dungeon.level.pressCell(target);
 			}
 			
+		} else if (!Dungeon.level.passable[target]){
+			GLog.w( Messages.get(this, "bad_location"));
+			Dungeon.level.pressCell(target);
+
 		} else {
 			Ward ward = new Ward();
 			ward.pos = target;
@@ -201,6 +216,16 @@ public class WandOfWarding extends Wand {
 			return Messages.get(this, "stats_desc", 2);
 	}
 
+	@Override
+	public String upgradeStat1(int level) {
+		return 2+level + "-" + (8+4*level);
+	}
+
+	@Override
+	public String upgradeStat2(int level) {
+		return Integer.toString(level+2);
+	}
+
 	public static class Ward extends NPC {
 
 		public int tier = 1;
@@ -250,6 +275,10 @@ public class WandOfWarding extends Wand {
 					break;
 			}
 
+			if (Actor.chars().contains(this) && tier >= 3){
+				Bestiary.setSeen(WardSentry.class);
+			}
+
 			if (tier < 6){
 				tier++;
 				viewDistance++;
@@ -261,6 +290,9 @@ public class WandOfWarding extends Wand {
 			}
 
 		}
+
+		//this class is used so that wards and sentries can have two entries in the Bestiary
+		public static class WardSentry extends Ward{};
 
 		public void wandHeal( int wandLevel ){
 			wandHeal( wandLevel, 1f );
@@ -275,19 +307,29 @@ public class WandOfWarding extends Wand {
 			switch(tier){
 				default:
 					return;
+				case 2:
+					heal = Math.round(1 * healFactor);
+					break;
+				case 3:
+					heal = Math.round(Random.IntRange(1, 2) * healFactor);
+					break;
 				case 4:
-					heal = Math.round(9 * healFactor);
+					heal = Math.round(9 * healFactor); //9/5 1.8
 					break;
 				case 5:
-					heal = Math.round(12 * healFactor);
+					heal = Math.round(12 * healFactor); //12/6, 2
 					break;
 				case 6:
-					heal = Math.round(16 * healFactor);
+					heal = Math.round(16 * healFactor); //16/7, 2.28
 					break;
 			}
 
-			HP = Math.min(HT, HP+heal);
-			if (sprite != null) sprite.showStatus(CharSprite.POSITIVE, Integer.toString(heal));
+			if (tier <= 3){
+				totalZaps = (Math.max(0, totalZaps-heal));
+			} else {
+				HP = Math.min(HT, HP + heal);
+			}
+			if (sprite != null) sprite.showStatusWithIcon(CharSprite.POSITIVE, Integer.toString(heal), FloatingText.HEALING);
 
 		}
 
@@ -301,10 +343,11 @@ public class WandOfWarding extends Wand {
 
 		@Override
 		public int drRoll() {
+			int dr = super.drRoll();
 			if (tier > 3){
-				return Math.round(Random.NormalIntRange(0, 3 + Dungeon.scalingDepth()/2) / (7f - tier));
+				return dr + Math.round(Random.NormalIntRange(0, 3 + Dungeon.scalingDepth()/2) / (7f - tier));
 			} else {
-				return 0;
+				return dr;
 			}
 		}
 
@@ -329,7 +372,8 @@ public class WandOfWarding extends Wand {
 			spend( 1f );
 
 			//always hits
-			int dmg = Random.NormalIntRange( 2 + wandLevel, 8 + 4*wandLevel );
+			int dmg = Hero.heroDamageIntRange( 2 + wandLevel, 8 + 4*wandLevel );
+			Char enemy = this.enemy;
 			enemy.damage( dmg, this );
 			if (enemy.isAlive()){
 				Wand.wandProc(enemy, wandLevel, 1);
@@ -337,7 +381,8 @@ public class WandOfWarding extends Wand {
 
 			if (!enemy.isAlive() && enemy == Dungeon.hero) {
 				Badges.validateDeathFromFriendlyMagic();
-				Dungeon.fail( getClass() );
+				GLog.n(Messages.capitalize(Messages.get( this, "kill", name() )));
+				Dungeon.fail( WandOfWarding.class );
 			}
 
 			totalZaps++;
@@ -427,7 +472,16 @@ public class WandOfWarding extends Wand {
 
 		@Override
 		public String description() {
-			return Messages.get(this, "desc_" + tier, 2+wandLevel, 8 + 4*wandLevel, tier );
+			if (!Actor.chars().contains(this)){
+				//for viewing in the journal
+				if (tier < 4){
+					return Messages.get(this, "desc_generic_ward");
+				} else {
+					return Messages.get(this, "desc_generic_sentry");
+				}
+			} else {
+				return Messages.get(this, "desc_" + tier, 2 + wandLevel, 8 + 4 * wandLevel, tier);
+			}
 		}
 		
 		{

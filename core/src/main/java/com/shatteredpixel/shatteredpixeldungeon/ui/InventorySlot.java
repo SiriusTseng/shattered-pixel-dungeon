@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,16 +23,13 @@ package com.shatteredpixel.shatteredpixeldungeon.ui;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.LostInventory;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.bags.Bag;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndUseItem;
 import com.watabou.gltextures.TextureCache;
 import com.watabou.noosa.ColorBlock;
-import com.watabou.noosa.Game;
 import com.watabou.noosa.audio.Sample;
 
 public class InventorySlot extends ItemSlot {
@@ -84,26 +81,29 @@ public class InventorySlot extends ItemSlot {
 					item == Dungeon.hero.belongings.armor ||
 					item == Dungeon.hero.belongings.artifact ||
 					item == Dungeon.hero.belongings.misc ||
-					item == Dungeon.hero.belongings.ring;
+					item == Dungeon.hero.belongings.ring ||
+					item == Dungeon.hero.belongings.secondWep;
 
 			bg.texture( TextureCache.createSolid( equipped ? EQUIPPED : NORMAL ) );
 			bg.resetColor();
 			if (item.cursed && item.cursedKnown) {
 				bg.ra = +0.3f;
 				bg.ga = -0.15f;
+				bg.ba = -0.15f;
 			} else if (!item.isIdentified()) {
 				if ((item instanceof EquipableItem || item instanceof Wand) && item.cursedKnown){
-					bg.ba = 0.3f;
+					bg.ba = +0.3f;
+					bg.ra = -0.1f;
 				} else {
-					bg.ra = 0.3f;
-					bg.ba = 0.3f;
+					bg.ra = +0.35f;
+					bg.ba = +0.35f;
 				}
 			}
 
 			if (item.name() == null) {
 				enable( false );
-			} else if (Dungeon.hero.buff(LostInventory.class) != null
-					&& !item.keptThoughLostInvent){
+			} else if (Dungeon.hero.belongings.lostInventory()
+					&& !item.keptThroughLostInventory()){
 				enable(false);
 			}
 		} else {

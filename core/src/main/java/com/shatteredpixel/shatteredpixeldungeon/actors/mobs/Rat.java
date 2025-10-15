@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,14 +35,17 @@ public class Rat extends Mob {
 		
 		HP = HT = 8;
 		defenseSkill = 2;
-		
+
 		maxLvl = 5;
 	}
 
 	@Override
 	protected boolean act() {
-		if (Dungeon.level.heroFOV[pos] && Dungeon.hero.armorAbility instanceof Ratmogrify){
-			alignment = Alignment.ALLY;
+		if (alignment != Alignment.ALLY
+				&& Dungeon.level.heroFOV[pos]
+				&& Dungeon.hero.armorAbility instanceof Ratmogrify){
+			alignment = Alignment.NEUTRAL;
+			if (enemy == Dungeon.hero) enemy = null;
 			if (state == SLEEPING) state = WANDERING;
 		}
 		return super.act();
@@ -60,7 +63,7 @@ public class Rat extends Mob {
 	
 	@Override
 	public int drRoll() {
-		return Random.NormalIntRange(0, 1);
+		return super.drRoll() + Random.NormalIntRange(0, 1);
 	}
 
 	private static final String RAT_ALLY = "rat_ally";

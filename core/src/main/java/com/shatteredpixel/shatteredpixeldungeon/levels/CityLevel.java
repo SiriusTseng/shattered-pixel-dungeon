@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,9 @@ package com.shatteredpixel.shatteredpixeldungeon.levels;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Imp;
+import com.shatteredpixel.shatteredpixeldungeon.effects.particles.ElmoParticle;
 import com.shatteredpixel.shatteredpixeldungeon.levels.painters.CityPainter;
 import com.shatteredpixel.shatteredpixeldungeon.levels.painters.Painter;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.BlazingTrap;
@@ -59,12 +61,18 @@ public class CityLevel extends RegularLevel {
 		color2 = 0xf2f2f2;
 	}
 
+	public static final String[] CITY_TRACK_LIST
+			= new String[]{Assets.Music.CITY_1, Assets.Music.CITY_2, Assets.Music.CITY_2,
+			Assets.Music.CITY_1, Assets.Music.CITY_3, Assets.Music.CITY_3};
+	public static final float[] CITY_TRACK_CHANCES = new float[]{1f, 1f, 0.5f, 0.25f, 1f, 0.5f};
+
 	@Override
 	public void playLevelMusic() {
-		Music.INSTANCE.playTracks(
-				new String[]{Assets.Music.CITY_1, Assets.Music.CITY_2, Assets.Music.CITY_2},
-				new float[]{1, 1, 0.5f},
-				false);
+		if (Statistics.amuletObtained){
+			Music.INSTANCE.play(Assets.Music.CITY_TENSE, true);
+		} else {
+			Music.INSTANCE.playTracks(CITY_TRACK_LIST, CITY_TRACK_CHANCES, false);
+		}
 	}
 
 	@Override
@@ -129,6 +137,9 @@ public class CityLevel extends RegularLevel {
 				return Messages.get(CityLevel.class, "water_name");
 			case Terrain.HIGH_GRASS:
 				return Messages.get(CityLevel.class, "high_grass_name");
+			case Terrain.REGION_DECO:
+			case Terrain.REGION_DECO_ALT:
+				return Messages.get(CityLevel.class, "region_deco_name");
 			default:
 				return super.tileName( tile );
 		}
@@ -138,6 +149,7 @@ public class CityLevel extends RegularLevel {
 	public String tileDesc(int tile) {
 		switch (tile) {
 			case Terrain.ENTRANCE:
+			case Terrain.ENTRANCE_SP:
 				return Messages.get(CityLevel.class, "entrance_desc");
 			case Terrain.EXIT:
 				return Messages.get(CityLevel.class, "exit_desc");
@@ -151,6 +163,9 @@ public class CityLevel extends RegularLevel {
 				return Messages.get(CityLevel.class, "statue_desc");
 			case Terrain.BOOKSHELF:
 				return Messages.get(CityLevel.class, "bookshelf_desc");
+			case Terrain.REGION_DECO:
+			case Terrain.REGION_DECO_ALT:
+				return Messages.get(CityLevel.class, "region_deco_desc");
 			default:
 				return super.tileDesc( tile );
 		}
@@ -170,6 +185,67 @@ public class CityLevel extends RegularLevel {
 			}
 		}
 	}
+
+	@Override
+	public Group addWallVisuals() {
+		super.addWallVisuals();
+		addCityWallVisuals( this, wallVisuals );
+		return wallVisuals;
+	}
+
+	public static void addCityWallVisuals( Level level, Group group ) {
+		for (int i=0; i < level.length(); i++) {
+			if (level.map[i] == Terrain.REGION_DECO || level.map[i] == Terrain.REGION_DECO_ALT) {
+				group.add( new GreenFlame( i ) );
+			}
+		}
+	}
+
+	public static class GreenFlame extends Emitter {
+
+		private int pos;
+
+		public static final Emitter.Factory factory = new Factory() {
+			@Override
+			public void emit( Emitter emitter, int index, float x, float y ) {
+				GreenFlameParticle p = (GreenFlameParticle)emitter.recycle( GreenFlameParticle.class );
+				p.reset( x, y );
+			}
+			@Override
+			public boolean lightMode() {
+				return true;
+			}
+		};
+
+		public GreenFlame( int pos ) {
+			super();
+
+			this.pos = pos;
+
+			PointF p = DungeonTilemap.raisedTileCenterToWorld( pos );
+			pos( p.x - 2, p.y - 5, 4, 4 );
+
+			pour( factory, 0.1f );
+		}
+
+		@Override
+		public void update() {
+			if (visible = (pos < Dungeon.level.heroFOV.length && Dungeon.level.heroFOV[pos])) {
+				super.update();
+			}
+		}
+
+	}
+
+	public static class GreenFlameParticle extends ElmoParticle {
+
+		public GreenFlameParticle(){
+			super();
+			acc.set( 0, -40 );
+		}
+
+	}
+
 	
 	public static class Smoke extends Emitter {
 		

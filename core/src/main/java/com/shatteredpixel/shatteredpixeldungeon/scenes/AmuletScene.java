@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.scenes;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
+import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
@@ -32,17 +33,16 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Amulet;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
-import com.shatteredpixel.shatteredpixeldungeon.ui.Archs;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
-import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.watabou.noosa.Camera;
-import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
+import com.watabou.noosa.audio.Music;
 import com.watabou.noosa.tweeners.Delayer;
 import com.watabou.utils.Random;
+import com.watabou.utils.RectF;
 
 public class AmuletScene extends PixelScene {
 	
@@ -70,7 +70,6 @@ public class AmuletScene extends PixelScene {
 		if (!noText) {
 			text = renderTextBlock( Messages.get(this, "text"), 8 );
 			text.maxWidth( PixelScene.landscape() ? 2*WIDTH-4 : WIDTH);
-			add( text );
 		}
 		
 		amulet = new Image( Assets.Sprites.AMULET );
@@ -81,6 +80,7 @@ public class AmuletScene extends PixelScene {
 			protected void onClick() {
 				Dungeon.win( Amulet.class );
 				Dungeon.deleteGame( GamesInProgress.curSlot, true );
+				Badges.saveGlobal();
 				btnExit.enable(false);
 				btnStay.enable(false);
 
@@ -99,6 +99,10 @@ public class AmuletScene extends PixelScene {
 						}
 					}
 				});
+				Music.INSTANCE.playTracks(
+						new String[]{Assets.Music.THEME_2, Assets.Music.THEME_1},
+						new float[]{1, 1},
+						false);
 			}
 		};
 		btnExit.icon(new ItemSprite(ItemSpriteSheet.AMULET));
@@ -116,29 +120,34 @@ public class AmuletScene extends PixelScene {
 		btnStay.icon(Icons.CLOSE.get());
 		btnStay.setSize( WIDTH, BTN_HEIGHT );
 		add( btnStay );
-		
+
+		RectF insets = getCommonInsets();
+		int w = (int) (Camera.main.width - insets.left + insets.right);
+		int h = (int) (Camera.main.height - insets.top + insets.bottom);
+
 		float height;
 		if (noText) {
 			height = amulet.height + LARGE_GAP + btnExit.height() + SMALL_GAP + btnStay.height();
 			
-			amulet.x = (Camera.main.width - amulet.width) / 2;
-			amulet.y = (Camera.main.height - height) / 2;
+			amulet.x = insets.left + (w - amulet.width) / 2;
+			amulet.y = insets.top + (h - height) / 2;
 			align(amulet);
 
-			btnExit.setPos( (Camera.main.width - btnExit.width()) / 2, amulet.y + amulet.height + LARGE_GAP );
+			btnExit.setPos( insets.left + (w - btnExit.width()) / 2, amulet.y + amulet.height + LARGE_GAP );
 			btnStay.setPos( btnExit.left(), btnExit.bottom() + SMALL_GAP );
 			
 		} else {
 			height = amulet.height + LARGE_GAP + text.height() + LARGE_GAP + btnExit.height() + SMALL_GAP + btnStay.height();
-			
-			amulet.x = (Camera.main.width - amulet.width) / 2;
-			amulet.y = (Camera.main.height - height) / 2;
+
+			amulet.x = insets.left + (w - amulet.width) / 2;
+			amulet.y = insets.top + (h - height) / 2;
 			align(amulet);
 
-			text.setPos((Camera.main.width - text.width()) / 2, amulet.y + amulet.height + LARGE_GAP);
+			text.setPos(insets.left + (w - text.width()) / 2, amulet.y + amulet.height + LARGE_GAP);
 			align(text);
-			
-			btnExit.setPos( (Camera.main.width - btnExit.width()) / 2, text.top() + text.height() + LARGE_GAP );
+			add(text);
+
+			btnExit.setPos( insets.left + (w - btnExit.width()) / 2, text.top() + text.height() + LARGE_GAP );
 			btnStay.setPos( btnExit.left(), btnExit.bottom() + SMALL_GAP );
 		}
 

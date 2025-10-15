@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
+import com.shatteredpixel.shatteredpixeldungeon.Rankings;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
@@ -37,13 +38,15 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndTextInput;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndChallenges;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndHeroInfo;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndKeyBindings;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndTextInput;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndTitledMessage;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndVictoryCongrats;
 import com.watabou.gltextures.TextureCache;
 import com.watabou.input.PointerEvent;
 import com.watabou.noosa.Camera;
@@ -52,11 +55,14 @@ import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.NinePatch;
 import com.watabou.noosa.PointerArea;
+import com.watabou.noosa.SkinnedBlock;
 import com.watabou.noosa.tweeners.Tweener;
 import com.watabou.noosa.ui.Component;
 import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.GameMath;
+import com.watabou.utils.PlatformSupport;
 import com.watabou.utils.PointF;
+import com.watabou.utils.RectF;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -81,6 +87,8 @@ public class HeroSelectScene extends PixelScene {
 	private GameOptions optionsPane;
 	private IconButton btnExit;
 
+	private RectF insets;
+
 	@Override
 	public void create() {
 		super.create();
@@ -90,7 +98,12 @@ public class HeroSelectScene extends PixelScene {
 		Badges.loadGlobal();
 		Journal.loadGlobal();
 
-		background = new Image(HeroClass.WARRIOR.splashArt()){
+		insets = Game.platform.getSafeInsets(PlatformSupport.INSET_BLK).scale(1f/defaultZoom);
+
+		float w = (Camera.main.width - insets.left - insets.right);
+		float h = (Camera.main.height - insets.top - insets.bottom);
+
+		background = new Image(TextureCache.createSolid(0xFF2d2f31), 0, 0, 800, 450){
 			@Override
 			public void update() {
 				if (GamesInProgress.selectedClass != null) {
@@ -104,7 +117,6 @@ public class HeroSelectScene extends PixelScene {
 			}
 		};
 		background.scale.set(Camera.main.height/background.height);
-		background.tint(0x2d2f31, 1f);
 
 		background.x = (Camera.main.width - background.width())/2f;
 		background.y = (Camera.main.height - background.height())/2f;
@@ -136,7 +148,8 @@ public class HeroSelectScene extends PixelScene {
 
 				Dungeon.hero = null;
 				Dungeon.daily = Dungeon.dailyReplay = false;
-				ActionIndicator.action = null;
+				Dungeon.initSeed();
+				ActionIndicator.clearAction();
 				InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
 
 				Game.switchScene( InterlevelScene.class );
@@ -152,11 +165,14 @@ public class HeroSelectScene extends PixelScene {
 			@Override
 			protected void onClick() {
 				super.onClick();
-				Window w = new WndHeroInfo(GamesInProgress.selectedClass);
-				if (landscape()){
-					w.offset(Camera.main.width/6, 0);
+				HeroClass cls = GamesInProgress.selectedClass;
+				if (cls != null) {
+					Window info = new WndHeroInfo(GamesInProgress.selectedClass);
+					if (landscape()) {
+						info.offset((int)(w / 6), 0);
+					}
+					ShatteredPixelDungeon.scene().addToFront(info);
 				}
-				ShatteredPixelDungeon.scene().addToFront(w);
 			}
 
 			@Override
@@ -205,28 +221,30 @@ public class HeroSelectScene extends PixelScene {
 		updateOptionsColor();
 		btnOptions.visible = false;
 
-		if (DeviceCompat.isDebug() || Badges.isUnlocked(Badges.Badge.VICTORY)){
+		if(!SPDSettings.intro()){
 			add(btnOptions);
-		} else {
+		}
+
+		if (!Badges.isUnlocked(Badges.Badge.VICTORY) && !DeviceCompat.isDebug()){
 			Dungeon.challenges = 0;
 			SPDSettings.challenges(0);
 			SPDSettings.customSeed("");
 		}
 
 		if (landscape()){
-			float leftArea = Math.max(100, Camera.main.width/3f);
-			float uiHeight = Math.min(Camera.main.height-20, 300);
+			float leftArea = Math.max(100, w/3f);
+			float uiHeight = Math.min(h-20, 300);
 			float uiSpacing = (uiHeight-120)/2f;
 
 			if (uiHeight >= 160) uiSpacing -= 5;
 			if (uiHeight >= 180) uiSpacing -= 6;
 
-			background.x += leftArea/6f;
+			background.x += insets.left + leftArea/6f;
 
 			float fadeLeftScale = 47 * (leftArea - background.x)/leftArea;
 			fadeLeft.scale = new PointF(3 + Math.max(0, fadeLeftScale), background.height());
 
-			title.setPos( (leftArea - title.width())/2f, (Camera.main.height-uiHeight)/2f);
+			title.setPos(insets.left + (leftArea - title.width())/2f, (h-uiHeight)/2f);
 			align(title);
 
 			int btnWidth = HeroBtn.MIN_WIDTH + 15;
@@ -235,8 +253,8 @@ public class HeroSelectScene extends PixelScene {
 				btnHeight += 6;
 			}
 
-			int cols = 2;
-			float curX = (leftArea - btnWidth * cols + (cols-1))/2f;
+			int cols = (int)Math.ceil(heroBtns.size()/2f);
+			float curX = insets.left + (leftArea - btnWidth * cols + (cols-1))/2f;
 			float curY = title.bottom() + uiSpacing;
 
 			int count = 0;
@@ -256,7 +274,7 @@ public class HeroSelectScene extends PixelScene {
 			}
 
 			heroName = renderTextBlock(9);
-			heroName.setPos(0, heroBtns.get(heroBtns.size()-1).bottom()+5);
+			heroName.setPos(insets.left, heroBtns.get(heroBtns.size()-1).bottom()+5);
 			add(heroName);
 
 			if (uiHeight >= 160){
@@ -265,15 +283,15 @@ public class HeroSelectScene extends PixelScene {
 				heroDesc = renderTextBlock(5);
 			}
 			heroDesc.align(RenderedTextBlock.CENTER_ALIGN);
-			heroDesc.setPos(0, heroName.bottom()+5);
+			heroDesc.setPos(insets.left, heroName.bottom()+5);
 			add(heroDesc);
 
 			startBtn.text(Messages.titleCase(Messages.get(this, "start")));
 			startBtn.setSize(startBtn.reqWidth()+8, 21);
-			startBtn.setPos((leftArea - startBtn.width())/2f, title.top() + uiHeight - startBtn.height());
+			startBtn.setPos(insets.left + (leftArea - startBtn.width())/2f, title.top() + uiHeight - startBtn.height());
 			align(startBtn);
 
-			btnFade = new IconButton(Icons.COMPASS.get()){
+			btnFade = new IconButton(Icons.CHEVRON.get()){
 				@Override
 				protected void onClick() {
 					enable(false);
@@ -301,26 +319,37 @@ public class HeroSelectScene extends PixelScene {
 
 			int btnWidth = HeroBtn.MIN_WIDTH;
 
-			float curX = (Camera.main.width - btnWidth * heroBtns.size()) / 2f;
+			float curX = insets.left + (w - btnWidth * heroBtns.size()) / 2f;
 			if (curX > 0) {
 				btnWidth += Math.min(curX / (heroBtns.size() / 2f), 15);
-				curX = (Camera.main.width - btnWidth * heroBtns.size()) / 2f;
+				curX = insets.left + (w - btnWidth * heroBtns.size()) / 2f;
 			}
-			float curY = Camera.main.height - HeroBtn.HEIGHT + 3;
+			float curY = insets.top + h - HeroBtn.HEIGHT + 3;
 
 			for (StyledButton button : heroBtns) {
-				button.setRect(curX, curY, btnWidth, HeroBtn.HEIGHT);
+				button.setRect(curX, curY, btnWidth, HeroBtn.HEIGHT + insets.bottom);
 				curX += btnWidth;
 			}
 
-			title.setPos((Camera.main.width - title.width()) / 2f, (Camera.main.height - HeroBtn.HEIGHT - title.height() - 4));
+			//add a darkening bar along bottom
+			if (insets.bottom > 0){
+				SkinnedBlock bar = new SkinnedBlock(Camera.main.width, insets.bottom, TextureCache.createSolid(0xAA000000));
+				bar.y = h + insets.top;
+				add(bar);
+
+				PointerArea blocker = new PointerArea(0, Camera.main.width - insets.bottom, Camera.main.width, insets.bottom);
+				add(blocker);
+			}
+
+			title.setPos(insets.left + (w - title.width()) / 2f, insets.top + (h - HeroBtn.HEIGHT - title.height() - 4));
 
 			btnOptions.setRect(heroBtns.get(0).left() + 16, Camera.main.height-HeroBtn.HEIGHT-16, 20, 21);
 			optionsPane.setPos(heroBtns.get(0).left(), 0);
 		}
 
 		btnExit = new ExitButton();
-		btnExit.setPos( Camera.main.width - btnExit.width(), 0 );
+		int ofs = PixelScene.landscape() ? 0 : 4;
+		btnExit.setPos( Camera.main.width - btnExit.width() - ofs, ofs );
 		add( btnExit );
 		btnExit.visible = btnExit.active = !SPDSettings.intro();
 
@@ -355,6 +384,11 @@ public class HeroSelectScene extends PixelScene {
 			setSelectedHero(GamesInProgress.selectedClass);
 		}
 
+		if (Badges.isUnlocked(Badges.Badge.VICTORY) && !SPDSettings.victoryNagged()) {
+			SPDSettings.victoryNagged(true);
+			add(new WndVictoryCongrats());
+		}
+
 		fadeIn();
 
 	}
@@ -372,23 +406,36 @@ public class HeroSelectScene extends PixelScene {
 	private void setSelectedHero(HeroClass cl){
 		GamesInProgress.selectedClass = cl;
 
-		background.texture( cl.splashArt() );
+		try {
+			//loading these big jpgs fails sometimes, so we have a catch for it
+			background.texture(cl.splashArt());
+		} catch (Exception e){
+			Game.reportException(e);
+			background.texture(TextureCache.createSolid(0xFF2d2f31));
+			background.frame(0, 0, 800, 450);
+		}
 		background.visible = true;
 		background.hardlight(1.5f,1.5f,1.5f);
 
-		float leftPortion = Math.max(100, Camera.main.width/3f);
+		float leftPortion = Math.max(100, (Camera.main.width - insets.left - insets.right)/3f);
 
 		if (landscape()) {
 
 			heroName.text(Messages.titleCase(cl.title()));
 			heroName.hardlight(Window.TITLE_COLOR);
-			heroName.setPos((leftPortion - heroName.width() - 20)/2f, heroName.top());
+			heroName.setPos(insets.left + (leftPortion - heroName.width() - 20)/2f, heroName.top());
 			align(heroName);
 
 			heroDesc.text(cl.shortDesc());
 			heroDesc.maxWidth(80);
-			heroDesc.setPos((leftPortion - heroDesc.width())/2f, heroName.bottom() + 5);
+			heroDesc.setPos(insets.left +(leftPortion - heroDesc.width())/2f, heroName.bottom() + 5);
 			align(heroDesc);
+
+			while(startBtn.top() < heroDesc.bottom()){
+				heroDesc.maxWidth(heroDesc.maxWidth()+10);
+				heroDesc.setPos(Math.max(insets.left, (leftPortion - heroDesc.width())/2f), heroName.bottom() + 5);
+				align(heroDesc);
+			}
 
 			btnFade.visible = btnFade.active = true;
 
@@ -407,7 +454,7 @@ public class HeroSelectScene extends PixelScene {
 			startBtn.text(Messages.titleCase(cl.title()));
 			startBtn.setSize(startBtn.reqWidth() + 8, 21);
 
-			startBtn.setPos((Camera.main.width - startBtn.width())/2f, (Camera.main.height - HeroBtn.HEIGHT + 2 - startBtn.height()));
+			startBtn.setPos((Camera.main.width - startBtn.width())/2f, (Camera.main.height - insets.bottom - HeroBtn.HEIGHT + 2 - startBtn.height()));
 			PixelScene.align(startBtn);
 
 			infoButton.visible = infoButton.active = true;
@@ -428,6 +475,9 @@ public class HeroSelectScene extends PixelScene {
 	@Override
 	public void update() {
 		super.update();
+		if (SPDSettings.intro() && Rankings.INSTANCE.totalNumber > 0){
+			SPDSettings.intro(false);
+		}
 		btnExit.visible = btnExit.active = !SPDSettings.intro();
 		//do not fade when a window is open
 		for (Object v : members){
@@ -456,7 +506,7 @@ public class HeroSelectScene extends PixelScene {
 		}
 		startBtn.enable(alpha != 0);
 		startBtn.alpha(alpha);
-		btnExit.enable(alpha != 0);
+		btnExit.enable(btnExit.visible && alpha != 0);
 		btnExit.icon().alpha(alpha);
 		optionsPane.active = optionsPane.visible && alpha != 0;
 		optionsPane.alpha(alpha);
@@ -467,13 +517,15 @@ public class HeroSelectScene extends PixelScene {
 
 		if (landscape()){
 
-			background.x = (Camera.main.width - background.width())/2f;
+			int w = (int)(Camera.main.width - insets.left - insets.right);
 
-			float leftPortion = Math.max(100, Camera.main.width/3f);
+			background.x = insets.left + (w - background.width())/2f;
+
+			float leftPortion = Math.max(100, w/3f);
 
 			background.x += (leftPortion/2f)*alpha;
 
-			float fadeLeftScale = 47 * (leftPortion - background.x)/leftPortion;
+			float fadeLeftScale = 47 * (leftPortion - (background.x - insets.left))/leftPortion;
 			fadeLeft.scale.x = 3 + Math.max(fadeLeftScale, 0)*alpha;
 			fadeLeft.x = background.x-4;
 			fadeRight.x = background.x + background.width() + 4;
@@ -547,6 +599,15 @@ public class HeroSelectScene extends PixelScene {
 				setSelectedHero(cl);
 			}
 		}
+
+		@Override
+		protected void layout() {
+			super.layout();
+			//if we're super tall (i.e. rendering into display inset) then put hero at the top
+			if (height > 30) {
+				icon.y = y + (HEIGHT - icon.height()) / 2f;
+			}
+		}
 	}
 
 	private class GameOptions extends Component {
@@ -564,164 +625,190 @@ public class HeroSelectScene extends PixelScene {
 
 			buttons = new ArrayList<>();
 			spacers = new ArrayList<>();
-			if (DeviceCompat.isDebug() || Badges.isUnlocked(Badges.Badge.VICTORY)){
-				StyledButton seedButton = new StyledButton(Chrome.Type.BLANK, Messages.get(HeroSelectScene.class, "custom_seed"), 6){
-					@Override
-					protected void onClick() {
-						String existingSeedtext = SPDSettings.customSeed();
-						ShatteredPixelDungeon.scene().addToFront( new WndTextInput(Messages.get(HeroSelectScene.class, "custom_seed_title"),
-								Messages.get(HeroSelectScene.class, "custom_seed_desc"),
-								existingSeedtext,
-								20,
-								false,
-								Messages.get(HeroSelectScene.class, "custom_seed_set"),
-								Messages.get(HeroSelectScene.class, "custom_seed_clear")){
-							@Override
-							public void onSelect(boolean positive, String text) {
-								text = DungeonSeed.formatText(text);
-								long seed = DungeonSeed.convertFromText(text);
-
-								if (positive && seed != -1){
-
-									for (GamesInProgress.Info info : GamesInProgress.checkAll()){
-										if (info.customSeed.isEmpty() && info.seed == seed){
-											SPDSettings.customSeed("");
-											icon.resetColor();
-											ShatteredPixelDungeon.scene().addToFront(new WndMessage(Messages.get(HeroSelectScene.class, "custom_seed_duplicate")));
-											return;
-										}
-									}
-
-									SPDSettings.customSeed(text);
-									icon.hardlight(1f, 1.5f, 0.67f);
-								} else {
-									SPDSettings.customSeed("");
-									icon.resetColor();
-								}
-								updateOptionsColor();
-							}
-						});
+			StyledButton seedButton = new StyledButton(Chrome.Type.BLANK, Messages.get(HeroSelectScene.class, "custom_seed"), 6){
+				@Override
+				protected void onClick() {
+					if (!Badges.isUnlocked(Badges.Badge.VICTORY) && !DeviceCompat.isDebug()){
+						ShatteredPixelDungeon.scene().addToFront( new WndTitledMessage(
+								Icons.get(Icons.SEED),
+								Messages.get(HeroSelectScene.class, "custom_seed"),
+								Messages.get(HeroSelectScene.class, "custom_seed_nowin"))
+						);
+						return;
 					}
-				};
-				seedButton.leftJustify = true;
-				seedButton.icon(Icons.get(Icons.SEED));
-				if (!SPDSettings.customSeed().isEmpty()) seedButton.icon().hardlight(1f, 1.5f, 0.67f);;
-				buttons.add(seedButton);
-				add(seedButton);
 
-				StyledButton dailyButton = new StyledButton(Chrome.Type.BLANK, Messages.get(HeroSelectScene.class, "daily"), 6){
+					String existingSeedtext = SPDSettings.customSeed();
+					ShatteredPixelDungeon.scene().addToFront( new WndTextInput(Messages.get(HeroSelectScene.class, "custom_seed_title"),
+							Messages.get(HeroSelectScene.class, "custom_seed_desc"),
+							existingSeedtext,
+							20,
+							false,
+							Messages.get(HeroSelectScene.class, "custom_seed_set"),
+							Messages.get(HeroSelectScene.class, "custom_seed_clear")){
+						@Override
+						public void onSelect(boolean positive, String text) {
+							text = DungeonSeed.formatText(text);
+							long seed = DungeonSeed.convertFromText(text);
 
-					private static final long SECOND = 1000;
-					private static final long MINUTE = 60 * SECOND;
-					private static final long HOUR = 60 * MINUTE;
-					private static final long DAY = 24 * HOUR;
+							if (positive && seed != -1){
 
-					@Override
-					protected void onClick() {
-						super.onClick();
+								for (GamesInProgress.Info info : GamesInProgress.checkAll()){
+									if (info.customSeed.isEmpty() && info.seed == seed){
+										SPDSettings.customSeed("");
+										icon.resetColor();
+										ShatteredPixelDungeon.scene().addToFront(new WndMessage(Messages.get(HeroSelectScene.class, "custom_seed_duplicate")));
+										return;
+									}
+								}
 
-						long diff = (SPDSettings.lastDaily() + DAY) - Game.realTime;
-						if (diff > 24*HOUR){
-							ShatteredPixelDungeon.scene().addToFront(new WndMessage(Messages.get(HeroSelectScene.class, "daily_unavailable_long", (diff / DAY)+1)));
+								SPDSettings.customSeed(text);
+								icon.hardlight(1f, 1.5f, 0.67f);
+							} else {
+								SPDSettings.customSeed("");
+								icon.resetColor();
+							}
+							updateOptionsColor();
+						}
+					});
+				}
+			};
+			seedButton.leftJustify = true;
+			seedButton.icon(Icons.get(Icons.SEED));
+			if (!SPDSettings.customSeed().isEmpty()) seedButton.icon().hardlight(1f, 1.5f, 0.67f);;
+			buttons.add(seedButton);
+			add(seedButton);
+
+			StyledButton dailyButton = new StyledButton(Chrome.Type.BLANK, Messages.get(HeroSelectScene.class, "daily"), 6){
+
+				private static final long SECOND = 1000;
+				private static final long MINUTE = 60 * SECOND;
+				private static final long HOUR = 60 * MINUTE;
+				private static final long DAY = 24 * HOUR;
+
+				@Override
+				protected void onClick() {
+					super.onClick();
+
+					if (!Badges.isUnlocked(Badges.Badge.VICTORY) && !DeviceCompat.isDebug()){
+						ShatteredPixelDungeon.scene().addToFront( new WndTitledMessage(
+								Icons.get(Icons.CALENDAR),
+								Messages.get(HeroSelectScene.class, "daily"),
+								Messages.get(HeroSelectScene.class, "daily_nowin"))
+						);
+						return;
+					}
+
+					long diff = (SPDSettings.lastDaily() + DAY) - Game.realTime;
+					if (diff > 24*HOUR){
+						ShatteredPixelDungeon.scene().addToFront(new WndMessage(Messages.get(HeroSelectScene.class, "daily_unavailable_long", (diff / DAY)+1)));
+						return;
+					}
+
+					for (GamesInProgress.Info game : GamesInProgress.checkAll()){
+						if (game.daily){
+							ShatteredPixelDungeon.scene().addToFront(new WndMessage(Messages.get(HeroSelectScene.class, "daily_existing")));
 							return;
 						}
-
-						for (GamesInProgress.Info game : GamesInProgress.checkAll()){
-							if (game.daily){
-								ShatteredPixelDungeon.scene().addToFront(new WndMessage(Messages.get(HeroSelectScene.class, "daily_existing")));
-								return;
-							}
-						}
-
-						Image icon = Icons.get(Icons.CALENDAR);
-						if (diff <= 0)  icon.hardlight(0.5f, 1f, 2f);
-						else            icon.hardlight(1f, 0.5f, 2f);
-						ShatteredPixelDungeon.scene().addToFront(new WndOptions(
-								icon,
-								Messages.get(HeroSelectScene.class, "daily"),
-								diff > 0 ?
-									Messages.get(HeroSelectScene.class, "daily_repeat") :
-									Messages.get(HeroSelectScene.class, "daily_desc"),
-								Messages.get(HeroSelectScene.class, "daily_yes"),
-								Messages.get(HeroSelectScene.class, "daily_no")){
-							@Override
-							protected void onSelect(int index) {
-								if (index == 0){
-									if (diff <= 0) {
-										long time = Game.realTime - (Game.realTime % DAY);
-
-										//earliest possible daily for v1.4.0 is Sept 10 2022
-										//which is 19,245 days after Jan 1 1970
-										time = Math.max(time, 19_245 * DAY);
-
-										SPDSettings.lastDaily(time);
-										Dungeon.dailyReplay = false;
-									} else {
-										Dungeon.dailyReplay = true;
-									}
-
-									Dungeon.hero = null;
-									Dungeon.daily = true;
-									ActionIndicator.action = null;
-									InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
-
-									Game.switchScene( InterlevelScene.class );
-								}
-							}
-						});
 					}
 
-					private long timeToUpdate = 0;
+					Image icon = Icons.get(Icons.CALENDAR);
+					if (diff <= 0)  icon.hardlight(0.5f, 1f, 2f);
+					else            icon.hardlight(1f, 0.5f, 2f);
+					ShatteredPixelDungeon.scene().addToFront(new WndOptions(
+							icon,
+							Messages.get(HeroSelectScene.class, "daily"),
+							diff > 0 ?
+								Messages.get(HeroSelectScene.class, "daily_repeat") :
+								Messages.get(HeroSelectScene.class, "daily_desc"),
+							Messages.get(HeroSelectScene.class, "daily_yes"),
+							Messages.get(HeroSelectScene.class, "daily_no")){
+						@Override
+						protected void onSelect(int index) {
+							if (index == 0){
+								if (diff <= 0) {
+									long time = Game.realTime - (Game.realTime % DAY);
 
-					private final SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss", Locale.ROOT);
-					{
-						dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-					}
+									//earliest possible daily for v3.0.1 is Mar 01 2025
+									//which is 20,148 days days after Jan 1 1970
+									time = Math.max(time, 20_148 * DAY);
 
-					@Override
-					public void update() {
-						super.update();
-
-						if (Game.realTime > timeToUpdate && visible){
-							long diff = (SPDSettings.lastDaily() + DAY) - Game.realTime;
-
-							if (diff > 0){
-								if (diff > 30*HOUR){
-									text("30:00:00+");
+									SPDSettings.lastDaily(time);
+									Dungeon.dailyReplay = false;
 								} else {
-									text(dateFormat.format(new Date(diff)));
+									Dungeon.dailyReplay = true;
 								}
-								timeToUpdate = Game.realTime + SECOND;
-							} else {
-								text(Messages.get(HeroSelectScene.class, "daily"));
-								timeToUpdate = Long.MAX_VALUE;
+
+								Dungeon.hero = null;
+								Dungeon.daily = true;
+								Dungeon.initSeed();
+								ActionIndicator.clearAction();
+								InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
+
+								Game.switchScene( InterlevelScene.class );
 							}
 						}
+					});
+				}
 
-					}
-				};
-				dailyButton.leftJustify = true;
-				dailyButton.icon(Icons.get(Icons.CALENDAR));
-				add(dailyButton);
-				buttons.add(dailyButton);
+				private long timeToUpdate = 0;
 
-				StyledButton challengeButton = new StyledButton(Chrome.Type.BLANK, Messages.get(WndChallenges.class, "title"), 6){
-					@Override
-					protected void onClick() {
-						ShatteredPixelDungeon.scene().addToFront(new WndChallenges(SPDSettings.challenges(), true) {
-							public void onBackPressed() {
-								super.onBackPressed();
-								icon(Icons.get(SPDSettings.challenges() > 0 ? Icons.CHALLENGE_ON : Icons.CHALLENGE_OFF));
-								updateOptionsColor();
+				private final SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss", Locale.ROOT);
+				{
+					dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+				}
+
+				@Override
+				public void update() {
+					super.update();
+
+					if (Game.realTime > timeToUpdate && visible){
+						long diff = (SPDSettings.lastDaily() + DAY) - Game.realTime;
+
+						if (diff > 0){
+							if (diff > 30*HOUR){
+								text("30:00:00+");
+							} else {
+								text(dateFormat.format(new Date(diff)));
 							}
-						} );
+							timeToUpdate = Game.realTime + SECOND;
+						} else {
+							text(Messages.get(HeroSelectScene.class, "daily"));
+							timeToUpdate = Long.MAX_VALUE;
+						}
 					}
-				};
-				challengeButton.leftJustify = true;
-				challengeButton.icon(Icons.get(SPDSettings.challenges() > 0 ? Icons.CHALLENGE_ON : Icons.CHALLENGE_OFF));
-				add(challengeButton);
-				buttons.add(challengeButton);
-			}
+
+				}
+			};
+			dailyButton.leftJustify = true;
+			dailyButton.icon(Icons.get(Icons.CALENDAR));
+			add(dailyButton);
+			buttons.add(dailyButton);
+
+			StyledButton challengeButton = new StyledButton(Chrome.Type.BLANK, Messages.get(WndChallenges.class, "title"), 6){
+				@Override
+				protected void onClick() {
+					if (!Badges.isUnlocked(Badges.Badge.VICTORY) && !DeviceCompat.isDebug()){
+						ShatteredPixelDungeon.scene().addToFront( new WndTitledMessage(
+								Icons.get(Icons.CHALLENGE_GREY),
+								Messages.get(WndChallenges.class, "title"),
+								Messages.get(HeroSelectScene.class, "challenges_nowin")
+						));
+						return;
+					}
+
+					ShatteredPixelDungeon.scene().addToFront(new WndChallenges(SPDSettings.challenges(), true) {
+						public void onBackPressed() {
+							super.onBackPressed();
+							icon(Icons.get(SPDSettings.challenges() > 0 ? Icons.CHALLENGE_COLOR : Icons.CHALLENGE_GREY));
+							updateOptionsColor();
+						}
+					} );
+				}
+			};
+			challengeButton.leftJustify = true;
+			challengeButton.icon(Icons.get(SPDSettings.challenges() > 0 ? Icons.CHALLENGE_COLOR : Icons.CHALLENGE_GREY));
+			add(challengeButton);
+			buttons.add(challengeButton);
 
 			for (int i = 1; i < buttons.size(); i++){
 				ColorBlock spc = new ColorBlock(1, 1, 0xFF000000);

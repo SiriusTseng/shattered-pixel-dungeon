@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,20 +27,22 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.FlavourBuff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.DwarfKing;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Lightning;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.SparkParticle;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.enchantments.Shocking;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
-import com.shatteredpixel.shatteredpixeldungeon.utils.BArray;
+import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
-import com.watabou.noosa.Camera;
+import com.watabou.noosa.Image;
 import com.watabou.noosa.audio.Sample;
+import com.watabou.utils.BArray;
 import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
@@ -68,50 +70,83 @@ public class WandOfLightning extends DamageWand {
 	@Override
 	public void onZap(Ballistica bolt) {
 
-		//lightning deals less damage per-target, the more targets that are hit.
-		float multipler = 0.4f + (0.6f/affected.size());
-		//if the main target is in water, all affected take full damage
-		if (Dungeon.level.water[bolt.collisionPos]) multipler = 1f;
-
-		for (Char ch : affected){
-			if (ch == Dungeon.hero) Camera.main.shake( 2, 0.3f );
-			ch.sprite.centerEmitter().burst( SparkParticle.FACTORY, 3 );
-			ch.sprite.flash();
-
+		for (Char ch : affected.toArray(new Char[0])){
 			if (ch != curUser && ch.alignment == curUser.alignment && ch.pos != bolt.collisionPos){
-				continue;
-			}
-			wandProc(ch, chargesPerCast());
-			if (ch == curUser) {
-				ch.damage(Math.round(damageRoll() * multipler * 0.5f), this);
-			} else {
-				ch.damage(Math.round(damageRoll() * multipler), this);
+				affected.remove(ch);
+			} else if (ch.buff(LightningCharge.class) != null){
+				affected.remove(ch);
 			}
 		}
 
-		if (!curUser.isAlive()) {
-			Badges.validateDeathFromFriendlyMagic();
-			Dungeon.fail( getClass() );
-			GLog.n(Messages.get(this, "ondeath"));
+		//lightning deals less damage per-target, the more targets that are hit.
+		float multiplier = 0.4f + (0.6f/affected.size());
+		//if the main target is in water, all affected take full damage
+		if (Dungeon.level.water[bolt.collisionPos]) multiplier = 1f;
+
+		for (Char ch : affected){
+			if (ch == Dungeon.hero) PixelScene.shake( 2, 0.3f );
+			ch.sprite.centerEmitter().burst( SparkParticle.FACTORY, 3 );
+			ch.sprite.flash();
+
+			wandProc(ch, chargesPerCast());
+			if (ch == curUser && ch.isAlive()) {
+				ch.damage(Math.round(damageRoll() * multiplier * 0.5f), this);
+				if (!curUser.isAlive()) {
+					Badges.validateDeathFromFriendlyMagic();
+					Dungeon.fail( this );
+					GLog.n(Messages.get(this, "ondeath"));
+				}
+			} else {
+				ch.damage(Math.round(damageRoll() * multiplier), this);
+			}
 		}
 	}
 
 	@Override
 	public void onHit(MagesStaff staff, Char attacker, Char defender, int damage) {
-		//acts like shocking enchantment
-		new LightningOnHit().proc(staff, attacker, defender, damage);
+
+		// lvl 0 - 25%
+		// lvl 1 - 40%
+		// lvl 2 - 50%
+		float procChance = (buffedLvl()+1f)/(buffedLvl()+4f) * procChanceMultiplier(attacker);
+		if (Random.Float() < procChance) {
+
+			float powerMulti = Math.min(1f, procChance);
+
+			FlavourBuff.prolong(attacker, LightningCharge.class, powerMulti*LightningCharge.DURATION);
+			attacker.sprite.centerEmitter().burst( SparkParticle.FACTORY, 10 );
+			attacker.sprite.flash();
+			Sample.INSTANCE.play( Assets.Sounds.LIGHTNING );
+
+		}
 	}
 
-	private static class LightningOnHit extends Shocking {
+	public static class LightningCharge extends FlavourBuff {
+
+		{
+			type = buffType.POSITIVE;
+		}
+
+		public static float DURATION = 10f;
+
 		@Override
-		protected float procChanceMultiplier(Char attacker) {
-			return Wand.procChanceMultiplier(attacker);
+		public int icon() {
+			return BuffIndicator.IMBUE;
+		}
+
+		@Override
+		public void tintIcon(Image icon) {
+			icon.hardlight(1, 1, 0);
 		}
 	}
 
 	private void arc( Char ch ) {
 
-		int dist = (Dungeon.level.water[ch.pos] && !ch.flying) ? 2 : 1;
+		int dist = Dungeon.level.water[ch.pos] ? 2 : 1;
+
+		if (curUser.buff(LightningCharge.class) != null){
+			dist++;
+		}
 
 		ArrayList<Char> hitThisArc = new ArrayList<>();
 		PathFinder.buildDistanceMap( ch.pos, BArray.not( Dungeon.level.solid, null ), dist );

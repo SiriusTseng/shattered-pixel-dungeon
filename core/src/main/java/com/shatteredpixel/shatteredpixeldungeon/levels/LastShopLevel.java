@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,12 +33,11 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.builders.LineBuilder;
 import com.shatteredpixel.shatteredpixeldungeon.levels.painters.CityPainter;
 import com.shatteredpixel.shatteredpixeldungeon.levels.painters.Painter;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
-import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.EntranceRoom;
-import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.ExitRoom;
+import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.entrance.EntranceRoom;
+import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.exit.ExitRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.ImpShopRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.watabou.noosa.Group;
-import com.watabou.utils.PathFinder;
 import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
@@ -119,14 +118,18 @@ public class LastShopLevel extends RegularLevel {
 	
 	@Override
 	protected void createItems() {
-		Item item = Bones.get();
-		if (item != null) {
-			int pos;
-			do {
-				pos = pointToCell(roomEntrance.random());
-			} while (pos == entrance());
-			drop( item, pos ).setHauntedIfCursed().type = Heap.Type.REMAINS;
-		}
+		Random.pushGenerator(Random.Long());
+			ArrayList<Item> bonesItems = Bones.get();
+			if (bonesItems != null) {
+				int pos;
+				do {
+					pos = pointToCell(roomEntrance.random());
+				} while (pos == entrance());
+				for (Item i : bonesItems) {
+					drop(i, pos).setHauntedIfCursed().type = Heap.Type.REMAINS;
+				}
+			}
+		Random.popGenerator();
 	}
 	
 	@Override
@@ -155,6 +158,9 @@ public class LastShopLevel extends RegularLevel {
 				return Messages.get(CityLevel.class, "water_name");
 			case Terrain.HIGH_GRASS:
 				return Messages.get(CityLevel.class, "high_grass_name");
+			case Terrain.REGION_DECO:
+			case Terrain.REGION_DECO_ALT:
+				return Messages.get(CityLevel.class, "region_deco_name");
 			default:
 				return super.tileName( tile );
 		}
@@ -164,6 +170,7 @@ public class LastShopLevel extends RegularLevel {
 	public String tileDesc(int tile) {
 		switch (tile) {
 			case Terrain.ENTRANCE:
+			case Terrain.ENTRANCE_SP:
 				return Messages.get(CityLevel.class, "entrance_desc");
 			case Terrain.EXIT:
 				return Messages.get(CityLevel.class, "exit_desc");
@@ -177,6 +184,9 @@ public class LastShopLevel extends RegularLevel {
 				return Messages.get(CityLevel.class, "statue_desc");
 			case Terrain.BOOKSHELF:
 				return Messages.get(CityLevel.class, "bookshelf_desc");
+			case Terrain.REGION_DECO:
+			case Terrain.REGION_DECO_ALT:
+				return Messages.get(CityLevel.class, "region_deco_desc");
 			default:
 				return super.tileDesc( tile );
 		}
@@ -188,4 +198,12 @@ public class LastShopLevel extends RegularLevel {
 		CityLevel.addCityVisuals(this, visuals);
 		return visuals;
 	}
+
+	@Override
+	public Group addWallVisuals() {
+		super.addWallVisuals();
+		CityLevel.addCityWallVisuals( this, wallVisuals );
+		return wallVisuals;
+	}
+
 }

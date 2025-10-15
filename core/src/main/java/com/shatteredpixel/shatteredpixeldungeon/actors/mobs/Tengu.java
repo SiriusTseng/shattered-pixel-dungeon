@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Doom;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Dread;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.LockedFloor;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Roots;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
@@ -59,6 +60,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.PrisonBossLevel;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
@@ -66,10 +68,10 @@ import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.TenguSprite;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BossHealthBar;
-import com.shatteredpixel.shatteredpixeldungeon.utils.BArray;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.particles.Emitter;
+import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Callback;
 import com.watabou.utils.GameMath;
@@ -91,21 +93,9 @@ public class Tengu extends Mob {
 		
 		HUNTING = new Hunting();
 		
-		flying = true; //doesn't literally fly, but he is fleet-of-foot enough to avoid hazards
-		
 		properties.add(Property.BOSS);
 		
 		viewDistance = 12;
-	}
-	
-	@Override
-	protected void onAdd() {
-		//when he's removed and re-added to the fight, his time is always set to now.
-		if (cooldown() > TICK) {
-			timeToNow();
-			spendToWhole();
-		}
-		super.onAdd();
 	}
 	
 	@Override
@@ -124,17 +114,18 @@ public class Tengu extends Mob {
 	
 	@Override
 	public int drRoll() {
-		return Random.NormalIntRange(0, 5);
+		return super.drRoll() + Random.NormalIntRange(0, 5);
 	}
 
 	boolean loading = false;
 
 	//Tengu is immune to debuffs and damage when removed from the level
 	@Override
-	public void add(Buff buff) {
+	public boolean add(Buff buff) {
 		if (Actor.chars().contains(this) || buff instanceof Doom || loading){
-			super.add(buff);
+			return super.add(buff);
 		}
+		return false;
 	}
 
 	@Override
@@ -146,31 +137,35 @@ public class Tengu extends Mob {
 		PrisonBossLevel.State state = ((PrisonBossLevel)Dungeon.level).state();
 		
 		int hpBracket = HT / 8;
-		
+
+		int curbracket = HP / hpBracket;
+
 		int beforeHitHP = HP;
 		super.damage(dmg, src);
+
+		//cannot be hit through multiple brackets at a time
+		if (HP <= (curbracket-1)*hpBracket){
+			HP = (curbracket-1)*hpBracket + 1;
+		}
+
+		int newBracket =  HP / hpBracket;
 		dmg = beforeHitHP - HP;
-		
-		//tengu cannot be hit through multiple brackets at a time
-		if ((beforeHitHP/hpBracket - HP/hpBracket) >= 2){
-			HP = hpBracket * ((beforeHitHP/hpBracket)-1) + 1;
-		}
-		
+
 		LockedFloor lock = Dungeon.hero.buff(LockedFloor.class);
-		if (lock != null) {
-			int multiple = state == PrisonBossLevel.State.FIGHT_START ? 1 : 4;
-			lock.addTime(dmg*multiple);
+		if (lock != null && !isImmune(src.getClass()) && !isInvulnerable(src.getClass())){
+			if (Dungeon.isChallenged(Challenges.STRONGER_BOSSES))   lock.addTime(2*dmg/3f);
+			else                                                    lock.addTime(dmg);
 		}
-		
+
 		//phase 2 of the fight is over
 		if (HP == 0 && state == PrisonBossLevel.State.FIGHT_ARENA) {
 			//let full attack action complete first
 			Actor.add(new Actor() {
-				
+
 				{
 					actPriority = VFX_PRIO;
 				}
-				
+
 				@Override
 				protected boolean act() {
 					Actor.remove(this);
@@ -180,16 +175,16 @@ public class Tengu extends Mob {
 			});
 			return;
 		}
-		
+
 		//phase 1 of the fight is over
 		if (state == PrisonBossLevel.State.FIGHT_START && HP <= HT/2){
 			HP = (HT/2);
 			yell(Messages.get(this, "interesting"));
 			((PrisonBossLevel)Dungeon.level).progress();
 			BossHealthBar.bleed(true);
-			
+
 		//if tengu has lost a certain amount of hp, jump
-		} else if (beforeHitHP / hpBracket != HP / hpBracket) {
+		} else if (newBracket != curbracket) {
 			//let full attack action complete first
 			Actor.add(new Actor() {
 
@@ -251,7 +246,7 @@ public class Tengu extends Mob {
 		}
 		
 		if (enemy == null) enemy = chooseEnemy();
-		if (enemy == null) return;
+		if (enemy == null) enemy = Dungeon.hero; //jump away from hero if nothing else is being targeted
 		
 		int newPos;
 		if (Dungeon.level instanceof PrisonBossLevel){
@@ -352,6 +347,7 @@ public class Tengu extends Mob {
 	}
 	
 	{
+		immunities.add( Roots.class );
 		immunities.add( Blindness.class );
 		immunities.add( Dread.class );
 		immunities.add( Terror.class );
@@ -384,11 +380,8 @@ public class Tengu extends Mob {
 		BossHealthBar.assignBoss(this);
 		if (HP <= HT/2) BossHealthBar.bleed(true);
 	}
-	
-	//don't bother bundling this, as its purely cosmetic
-	private boolean yelledCoward = false;
-	
-	//tengu is always hunting
+
+	//tengu is always hunting, and can use simpler rules because he never moves
 	private class Hunting extends Mob.Hunting{
 		
 		@Override
@@ -400,23 +393,28 @@ public class Tengu extends Mob {
 				if (canUseAbility()){
 					return useAbility();
 				}
-				
+
+				recentlyAttackedBy.clear();
+				target = enemy.pos;
 				return doAttack( enemy );
 				
 			} else {
-				
-				if (enemyInFOV) {
-					target = enemy.pos;
-				} else {
-					chooseEnemy();
-					if (enemy == null){
-						//if nothing else can be targeted, target hero
-						enemy = Dungeon.hero;
+
+				//Try to switch targets to another enemy that is closer
+				//unless we have already done that and still can't attack them, then move on.
+				if (!recursing) {
+					Char oldEnemy = enemy;
+					enemy = null;
+					enemy = chooseEnemy();
+					if (enemy != null && enemy != oldEnemy) {
+						recursing = true;
+						boolean result = act(enemyInFOV, justAlerted);
+						recursing = false;
+						return result;
 					}
-					target = enemy.pos;
 				}
 				
-				//if not charmed, attempt to use an ability, even if the enemy can't be seen
+				//attempt to use an ability, even if enemy can't be decided
 				if (canUseAbility()){
 					return useAbility();
 				}
@@ -504,33 +502,35 @@ public class Tengu extends Mob {
 			} else {
 				abilityToUse = Random.Int(3);
 			}
+
+			//all abilities always target the hero, even if something else is taking Tengu's normal attacks
 			
 			//If we roll the same ability as last time, 9/10 chance to reroll
 			if (abilityToUse != lastAbility || Random.Int(10) == 0){
 				switch (abilityToUse){
 					case BOMB_ABILITY : default:
-						abilityUsed = throwBomb(Tengu.this, enemy);
+						abilityUsed = throwBomb(Tengu.this, Dungeon.hero);
 						//if Tengu cannot use his bomb ability first, use fire instead.
 						if (abilitiesUsed == 0 && !abilityUsed){
 							abilityToUse = FIRE_ABILITY;
-							abilityUsed = throwFire(Tengu.this, enemy);
+							abilityUsed = throwFire(Tengu.this, Dungeon.hero);
 						}
 						break;
 					case FIRE_ABILITY:
-						abilityUsed = throwFire(Tengu.this, enemy);
+						abilityUsed = throwFire(Tengu.this, Dungeon.hero);
 						break;
 					case SHOCKER_ABILITY:
-						abilityUsed = throwShocker(Tengu.this, enemy);
+						abilityUsed = throwShocker(Tengu.this, Dungeon.hero);
 						//if Tengu cannot use his shocker ability second, use fire instead.
 						if (abilitiesUsed == 1 && !abilityUsed){
 							abilityToUse = FIRE_ABILITY;
-							abilityUsed = throwFire(Tengu.this, enemy);
+							abilityUsed = throwFire(Tengu.this, Dungeon.hero);
 						}
 						break;
 				}
 				//always use the fire ability with the bosses challenge
 				if (abilityUsed && abilityToUse != FIRE_ABILITY && Dungeon.isChallenged(Challenges.STRONGER_BOSSES)){
-					throwFire(Tengu.this, enemy);
+					throwFire(Tengu.this, Dungeon.hero);
 				}
 			}
 			
@@ -565,11 +565,17 @@ public class Tengu extends Mob {
 		
 		int targetCell = -1;
 		
-		//Targets closest cell which is adjacent to target
+		//Targets closest cell which is adjacent to target and has no existing bombs
 		for (int i : PathFinder.NEIGHBOURS8){
 			int cell = target.pos + i;
-			if (targetCell == -1 ||
-					Dungeon.level.trueDistance(cell, thrower.pos) < Dungeon.level.trueDistance(targetCell, thrower.pos)){
+			boolean bombHere = false;
+			for (BombAbility b : thrower.buffs(BombAbility.class)){
+				if (b.bombPos == cell){
+					bombHere = true;
+				}
+			}
+			if (!bombHere && !Dungeon.level.solid[cell] &&
+					(targetCell == -1 || Dungeon.level.trueDistance(cell, thrower.pos) < Dungeon.level.trueDistance(targetCell, thrower.pos))){
 				targetCell = cell;
 			}
 		}
@@ -612,11 +618,11 @@ public class Tengu extends Mob {
 			
 			PointF p = DungeonTilemap.raisedTileCenterToWorld(bombPos);
 			if (timer == 3) {
-				FloatingText.show(p.x, p.y, bombPos, "3...", CharSprite.NEUTRAL);
+				FloatingText.show(p.x, p.y, bombPos, "3...", CharSprite.WARNING);
 			} else if (timer == 2){
 				FloatingText.show(p.x, p.y, bombPos, "2...", CharSprite.WARNING);
 			} else if (timer == 1){
-				FloatingText.show(p.x, p.y, bombPos, "1...", CharSprite.NEGATIVE);
+				FloatingText.show(p.x, p.y, bombPos, "1...", CharSprite.WARNING);
 			} else {
 				PathFinder.buildDistanceMap( bombPos, BArray.not( Dungeon.level.solid, null ), 2 );
 				for (int cell = 0; cell < PathFinder.distance.length; cell++) {
@@ -640,17 +646,17 @@ public class Tengu extends Mob {
 								}
 							}
 						}
-
-						Heap h = Dungeon.level.heaps.get(cell);
-						if (h != null) {
-							for (Item i : h.items.toArray(new Item[0])) {
-								if (i instanceof BombItem) {
-									h.remove(i);
-								}
-							}
-						}
 					}
 
+				}
+
+				Heap h = Dungeon.level.heaps.get(bombPos);
+				if (h != null) {
+					for (Item i : h.items.toArray(new Item[0])) {
+						if (i instanceof BombItem) {
+							h.remove(i);
+						}
+					}
 				}
 				Sample.INSTANCE.play(Assets.Sounds.BLAST);
 				detach();
@@ -859,7 +865,8 @@ public class Tengu extends Mob {
 						}
 						
 						if (cur[cell] > 0 && off[cell] == 0){
-							
+
+							//similar to fire.burn(), but Tengu is immune, and hero loses score
 							Char ch = Actor.findChar( cell );
 							if (ch != null && !ch.isImmune(Fire.class) && !(ch instanceof Tengu)) {
 								Buff.affect( ch, Burning.class ).reignite( ch );
@@ -867,6 +874,16 @@ public class Tengu extends Mob {
 							if (ch == Dungeon.hero){
 								Statistics.qualifiedForBossChallengeBadge = false;
 								Statistics.bossScores[1] -= 100;
+							}
+
+							Heap heap = Dungeon.level.heaps.get( cell );
+							if (heap != null) {
+								heap.burn();
+							}
+
+							Plant plant = Dungeon.level.plants.get( cell );
+							if (plant != null){
+								plant.wither();
 							}
 							
 							if (Dungeon.level.flamable[cell]){

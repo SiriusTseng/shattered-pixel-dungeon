@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,25 +25,32 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
+import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
 import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal.WarriorShield;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ActionIndicator;
-import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIcon;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
+import com.shatteredpixel.shatteredpixeldungeon.ui.HeroIcon;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.Image;
+import com.watabou.noosa.Visual;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.GameMath;
+import com.watabou.utils.Random;
 
-import java.text.DecimalFormat;
-
-public class Berserk extends Buff implements ActionIndicator.Action {
+public class Berserk extends ShieldBuff implements ActionIndicator.Action {
 
 	{
 		type = buffType.POSITIVE;
+
+		detachesAtZero = false;
+		shieldUsePriority = -1; //other shielding buffs are always consumed first
 	}
 
 	private enum State{
@@ -94,21 +101,14 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 	@Override
 	public boolean act() {
 		if (state == State.BERSERK){
-			ShieldBuff buff = target.buff(WarriorShield.class);
 			if (target.shielding() > 0) {
 				//lose 2.5% of shielding per turn, but no less than 1
-				int dmg = (int)Math.ceil(target.shielding() * 0.025f);
-				if (buff != null && buff.shielding() > 0) {
-					dmg = buff.absorbDamage(dmg);
+				float dmg = (float)Math.ceil(target.shielding() * 0.025f) * HoldFast.buffDecayFactor(target);
+				if (Random.Float() < dmg % 1){
+					dmg++;
 				}
 
-				if (dmg > 0){
-					//if there is leftover damage, then try to remove from other shielding buffs
-					for (ShieldBuff s : target.buffs(ShieldBuff.class)){
-						dmg = s.absorbDamage(dmg);
-						if (dmg == 0) break;
-					}
-				}
+				ShieldBuff.processDamage(target, (int)dmg, this);
 
 				if (target.shielding() <= 0){
 					state = State.RECOVERING;
@@ -116,7 +116,7 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 					BuffIndicator.refreshHero();
 					if (!target.isAlive()){
 						target.die(this);
-						if (!target.isAlive()) Dungeon.fail(this.getClass());
+						if (!target.isAlive()) Dungeon.fail(this);
 					}
 				}
 
@@ -125,7 +125,7 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 				power = 0f;
 				if (!target.isAlive()){
 					target.die(this);
-					if (!target.isAlive()) Dungeon.fail(this.getClass());
+					if (!target.isAlive()) Dungeon.fail(this);
 				}
 
 			}
@@ -133,18 +133,19 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 			if (powerLossBuffer > 0){
 				powerLossBuffer--;
 			} else {
-				power -= GameMath.gate(0.1f, power, 1f) * 0.067f * Math.pow((target.HP / (float) target.HT), 2);
+				power -= GameMath.gate(0.1f, power, 1f) * 0.05f * Math.pow((target.HP / (float) target.HT), 2);
 
 				if (power < 1f){
 					ActionIndicator.clearAction(this);
+				} else {
+					ActionIndicator.refresh();
 				}
 
 				if (power <= 0) {
 					detach();
 				}
 			}
-		} else if (state == State.RECOVERING && levelRecovery == 0
-				&& (target.buff(LockedFloor.class) == null || target.buff(LockedFloor.class).regenOn())){
+		} else if (state == State.RECOVERING && levelRecovery == 0 && Regeneration.regenOn()){
 			turnRecovery--;
 			if (turnRecovery <= 0){
 				turnRecovery = 0;
@@ -173,7 +174,6 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 		if (target.HP == 0
 				&& state == State.NORMAL
 				&& power >= 1f
-				&& target.buff(WarriorShield.class) != null
 				&& ((Hero)target).hasTalent(Talent.DEATHLESS_FURY)){
 			startBerserking();
 			ActionIndicator.clearAction(this);
@@ -196,8 +196,16 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 			turnRecovery = 0;
 		}
 
-		//base multiplier scales at 2/3/4/5/6x at 100/37/20/9/0% HP
-		float shieldMultiplier = 2f + 4*(float)Math.pow((1f-(target.HP/(float)target.HT)), 3);
+		int shieldAmount = currentShieldBoost();
+		setShield(shieldAmount);
+		target.sprite.showStatusWithIcon( CharSprite.POSITIVE, Integer.toString(shieldAmount), FloatingText.SHIELDING );
+
+		BuffIndicator.refreshHero();
+	}
+
+	public int currentShieldBoost(){
+		//base multiplier scales at 1/1.5/2/2.5/3x at 100/37/20/9/0% HP
+		float shieldMultiplier = 1f + 2*(float)Math.pow((1f-(target.HP/(float)target.HT)), 3);
 
 		//Endless rage effect on shield and cooldown
 		if (power > 1f){
@@ -206,17 +214,26 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 			turnRecovery *= 2f - power;
 		}
 
-		WarriorShield shield = target.buff(WarriorShield.class);
-		int shieldAmount = Math.round(shield.maxShield() * shieldMultiplier);
-		shield.supercharge(shieldAmount);
+		int baseShield = 8;
+		if (target instanceof Hero && ((Hero) target).belongings.armor() != null){
+			baseShield += 2*((Hero) target).belongings.armor().buffedLvl();
+		}
+		return Math.round(baseShield * shieldMultiplier);
+	}
 
-		BuffIndicator.refreshHero();
+	//not accounting for talents
+	public int maxShieldBoost(){
+		int baseShield = 8;
+		if (target instanceof Hero && ((Hero) target).belongings.armor() != null){
+			baseShield += 2*((Hero) target).belongings.armor().buffedLvl();
+		}
+		return baseShield*3;
 	}
 	
 	public void damage(int damage){
 		if (state != State.NORMAL) return;
 		float maxPower = 1f + 0.1667f*((Hero)target).pointsInTalent(Talent.ENDLESS_RAGE);
-		power = Math.min(maxPower, power + (damage/(float)target.HT)/3f );
+		power = Math.min(maxPower, power + (damage/(float)target.HT)/4f );
 		BuffIndicator.refreshHero(); //show new power immediately
 		powerLossBuffer = 3; //2 turns until rage starts dropping
 		if (power >= 1f){
@@ -242,15 +259,28 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 	}
 
 	@Override
-	public Image actionIcon() {
-		//TODO, should look into these in general honestly
-		return new BuffIcon(BuffIndicator.FURY, true);
+	public int actionIcon() {
+		return HeroIcon.BERSERK;
+	}
+
+	@Override
+	public Visual secondaryVisual() {
+		BitmapText txt = new BitmapText(PixelScene.pixelFont);
+		txt.text((int) (power * 100) + "%");
+		txt.hardlight(CharSprite.POSITIVE);
+		txt.measure();
+		return txt;
+	}
+
+	@Override
+	public int indicatorColor() {
+		return 0x660000;
 	}
 
 	@Override
 	public void doAction() {
 		WarriorShield shield = target.buff(WarriorShield.class);
-		if (shield != null) {
+		if (shield != null && shield.maxShield() > 0) {
 			startBerserking();
 			ActionIndicator.clearAction(this);
 		} else {
@@ -286,23 +316,25 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 				float maxPower = 1f + 0.1667f*((Hero)target).pointsInTalent(Talent.ENDLESS_RAGE);
 				return (maxPower - power)/maxPower;
 			case BERSERK:
-				return 0f;
+				return 1f - shielding() / (float)maxShieldBoost();
 			case RECOVERING:
 				if (levelRecovery > 0) {
-					return 1f - levelRecovery/(LEVEL_RECOVER_START-Dungeon.hero.pointsInTalent(Talent.DEATHLESS_FURY));
+					return levelRecovery/(LEVEL_RECOVER_START-Dungeon.hero.pointsInTalent(Talent.DEATHLESS_FURY));
 				} else {
-					return 1f - turnRecovery/(float)TURN_RECOVERY_START;
+					return turnRecovery/(float)TURN_RECOVERY_START;
 				}
 		}
 	}
 
 	public String iconTextDisplay(){
 		switch (state){
-			case NORMAL: case BERSERK: default:
+			case NORMAL: default:
 				return (int)(power*100) + "%";
+			case BERSERK:
+				return Integer.toString(shielding());
 			case RECOVERING:
 				if (levelRecovery > 0) {
-					return new DecimalFormat("#.#").format(levelRecovery);
+					return Messages.decimalFormat("#.##", levelRecovery);
 				} else {
 					return Integer.toString(turnRecovery);
 				}
@@ -326,9 +358,9 @@ public class Berserk extends Buff implements ActionIndicator.Action {
 		float dispDamage = ((int)damageFactor(10000) / 100f) - 100f;
 		switch (state){
 			case NORMAL: default:
-				return Messages.get(this, "angered_desc", Math.floor(power * 100f), dispDamage);
+				return Messages.get(this, "angered_desc", Math.floor(power * 100f), dispDamage, currentShieldBoost());
 			case BERSERK:
-				return Messages.get(this, "berserk_desc");
+				return Messages.get(this, "berserk_desc", shielding());
 			case RECOVERING:
 				if (levelRecovery > 0){
 					return Messages.get(this, "recovering_desc") + "\n\n" + Messages.get(this, "recovering_desc_levels", levelRecovery);

@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
-import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Fire;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Freezing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Roots;
@@ -41,11 +40,11 @@ public class PotionOfSnapFreeze extends ExoticPotion {
 	
 	@Override
 	public void shatter(int cell) {
-		
+
+		splash( cell );
 		if (Dungeon.level.heroFOV[cell]) {
 			identify();
-			
-			splash( cell );
+
 			Sample.INSTANCE.play( Assets.Sounds.SHATTER );
 		}
 		
@@ -56,7 +55,7 @@ public class PotionOfSnapFreeze extends ExoticPotion {
 				
 				Char ch = Actor.findChar( cell + offset);
 				if (ch != null){
-					Buff.affect(ch, Roots.class, Roots.DURATION*2f);
+					Buff.prolong(ch, Roots.class, Roots.DURATION*2f);
 				}
 				
 			}

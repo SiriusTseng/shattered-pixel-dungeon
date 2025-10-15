@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,23 +29,23 @@ import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.services.news.News;
 import com.shatteredpixel.shatteredpixeldungeon.services.news.NewsArticle;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
-import com.shatteredpixel.shatteredpixeldungeon.ui.Archs;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ExitButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
+import com.shatteredpixel.shatteredpixeldungeon.ui.TitleBackground;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
+import com.shatteredpixel.shatteredpixeldungeon.windows.IconTitle;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndTitledMessage;
 import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.NinePatch;
 import com.watabou.noosa.ui.Component;
-import com.watabou.utils.DeviceCompat;
+import com.watabou.utils.RectF;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 
 public class NewsScene extends PixelScene {
 
@@ -62,34 +62,37 @@ public class NewsScene extends PixelScene {
 
 		int w = Camera.main.width;
 		int h = Camera.main.height;
+		RectF insets = getCommonInsets();
+
+		TitleBackground BG = new TitleBackground(w, h);
+		add(BG);
+
+		w -= insets.left + insets.right;
+		h -= insets.top + insets.bottom;
 
 		int fullWidth = PixelScene.landscape() ? 202 : 100;
-		int left = (w - fullWidth)/2;
-
-		Archs archs = new Archs();
-		archs.setSize(w, h);
-		add(archs);
+		int left = (int)insets.left + (w - fullWidth)/2;
 
 		ExitButton btnExit = new ExitButton();
-		btnExit.setPos(w - btnExit.width(), 0);
+		btnExit.setPos(insets.left + w - btnExit.width(), insets.top);
 		add(btnExit);
 
-		RenderedTextBlock title = PixelScene.renderTextBlock(Messages.get(this, "title"), 9);
-		title.hardlight(Window.TITLE_COLOR);
+		IconTitle title = new IconTitle( Icons.NEWS.get(), Messages.get(this, "title"));
+		title.setSize(200, 0);
 		title.setPos(
-				(w - title.width()) / 2f,
-				(20 - title.height()) / 2f
+				insets.left + (w - title.reqWidth()) / 2f,
+				insets.top + (20 - title.height()) / 2f
 		);
 		align(title);
 		add(title);
 
-		float top = 18;
+		float top = 18 + insets.top;
 
 		displayingNoArticles = !News.articlesAvailable();
 		if (displayingNoArticles || Messages.lang() != Languages.ENGLISH) {
 
 			Component newsInfo = new NewsInfo();
-			newsInfo.setRect(left, 20, fullWidth, 0);
+			newsInfo.setRect(left, top, fullWidth, 0);
 			add(newsInfo);
 
 			top = newsInfo.bottom();
@@ -99,7 +102,7 @@ public class NewsScene extends PixelScene {
 		if (!displayingNoArticles) {
 			ArrayList<NewsArticle> articles = News.articles();
 
-			float articleSpace = h - top - 2;
+			float articleSpace = h - top - 2 + insets.top;
 			int rows = articles.size();
 			if (PixelScene.landscape()){
 				rows /= 2;
@@ -146,12 +149,7 @@ public class NewsScene extends PixelScene {
 			@Override
 			protected void onClick() {
 				super.onClick();
-				String link = "https://ShatteredPixel.com";
-				//tracking codes, so that the website knows where this pageview came from
-				link += "?utm_source=shatteredpd";
-				link += "&utm_medium=news_page";
-				link += "&utm_campaign=ingame_link";
-				ShatteredPixelDungeon.platform.openURI(link);
+				ShatteredPixelDungeon.platform.openURI("https://ShatteredPixel.com");
 			}
 		};
 		btnSite.icon(Icons.get(Icons.NEWS));
@@ -274,8 +272,6 @@ public class NewsScene extends PixelScene {
 				textColor(Window.SHPX_COLOR);
 			}
 
-			Calendar cal = Calendar.getInstance();
-			cal.setTime(article.date);
 			date = new BitmapText( News.parseArticleDate(article), pixelFont);
 			date.scale.set(PixelScene.align(0.5f));
 			date.hardlight( 0x888888 );
@@ -318,12 +314,7 @@ public class NewsScene extends PixelScene {
 				@Override
 				protected void onClick() {
 					super.onClick();
-					String link = article.URL;
-					//tracking codes, so that the website knows where this pageview came from
-					link += "?utm_source=shatteredpd";
-					link += "&utm_medium=news_page";
-					link += "&utm_campaign=ingame_link";
-					ShatteredPixelDungeon.platform.openURI(link);
+					ShatteredPixelDungeon.platform.openURI(article.URL);
 				}
 			};
 			link.setRect(0, height + 2, width, BTN_HEIGHT);

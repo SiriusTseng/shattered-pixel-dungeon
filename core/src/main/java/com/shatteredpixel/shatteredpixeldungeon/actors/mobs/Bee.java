@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,12 +27,11 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AllyBuff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Amok;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfAggression;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.BeeSprite;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Random;
-
-import java.util.HashSet;
 
 //FIXME the AI for these things is becoming a complete mess, should refactor
 public class Bee extends Mob {
@@ -80,6 +79,12 @@ public class Bee extends Mob {
 		potHolder = bundle.getInt( POTHOLDER );
 		if (bundle.contains(ALIGMNENT)) alignment = bundle.getEnum( ALIGMNENT, Alignment.class);
 	}
+
+	@Override
+	public void die(Object cause) {
+		flying = false;
+		super.die(cause);
+	}
 	
 	public void spawn( int level ) {
 		this.level = level;
@@ -124,13 +129,16 @@ public class Bee extends Mob {
 	}
 
 	@Override
-	public void add(Buff buff) {
-		super.add(buff);
-		//TODO maybe handle honeyed bees with their own ally buff?
-		if (buff instanceof AllyBuff){
-			intelligentAlly = false;
-			setPotInfo(-1, null);
+	public boolean add(Buff buff) {
+		if (super.add(buff)) {
+			//TODO maybe handle honeyed bees with their own ally buff?
+			if (buff instanceof AllyBuff) {
+				intelligentAlly = false;
+				setPotInfo(-1, null);
+			}
+			return true;
 		}
+		return false;
 	}
 
 	@Override
@@ -144,7 +152,24 @@ public class Bee extends Mob {
 			return (Char) Actor.findById(potHolder);
 			
 		//if the pot is on the ground
-		}else {
+		} else {
+
+			//copypasta from regular mob logic for aggression with added limit for pot distance
+			if ((alignment == Alignment.ENEMY || buff(Amok.class) != null ) && state != PASSIVE && state != SLEEPING) {
+				if (enemy != null
+						&& enemy.buff(StoneOfAggression.Aggression.class) != null
+						&& Dungeon.level.distance(enemy.pos, potPos) <= 3){
+					state = HUNTING;
+					return enemy;
+				}
+				for (Char ch : Actor.chars()) {
+					if (ch != this && fieldOfView[ch.pos] && Dungeon.level.distance(ch.pos, potPos) <= 3
+							&& ch.buff(StoneOfAggression.Aggression.class) != null) {
+						state = HUNTING;
+						return ch;
+					}
+				}
+			}
 			
 			//try to find a new enemy in these circumstances
 			if (enemy == null || !enemy.isAlive() || !Actor.chars().contains(enemy) || state == WANDERING
@@ -152,20 +177,22 @@ public class Bee extends Mob {
 					|| (alignment == Alignment.ALLY && enemy.alignment == Alignment.ALLY)
 					|| (buff( Amok.class ) == null && enemy.isInvulnerable(getClass()))){
 				
-				//find all mobs near the pot
-				HashSet<Char> enemies = new HashSet<>();
+				//target closest potential enemy near the pot
+				Char closest = null;
 				for (Mob mob : Dungeon.level.mobs) {
 					if (!(mob == this)
 							&& Dungeon.level.distance(mob.pos, potPos) <= 3
 							&& mob.alignment != Alignment.NEUTRAL
 							&& !mob.isInvulnerable(getClass())
 							&& !(alignment == Alignment.ALLY && mob.alignment == Alignment.ALLY)) {
-						enemies.add(mob);
+						if (closest == null || Dungeon.level.distance(closest.pos, pos) > Dungeon.level.distance(mob.pos, pos)){
+							closest = mob;
+						}
 					}
 				}
 				
-				if (!enemies.isEmpty()){
-					return Random.element(enemies);
+				if (closest != null){
+					return closest;
 				} else {
 					if (alignment != Alignment.ALLY && Dungeon.level.distance(Dungeon.hero.pos, potPos) <= 3){
 						return Dungeon.hero;
@@ -184,12 +211,17 @@ public class Bee extends Mob {
 
 	@Override
 	protected boolean getCloser(int target) {
-		if (alignment == Alignment.ALLY && enemy == null && buffs(AllyBuff.class).isEmpty()){
+		if (alignment == Alignment.ALLY && enemy == null && buffs(AllyBuff.class).isEmpty()) {
 			target = Dungeon.hero.pos;
 		} else if (enemy != null && Actor.findById(potHolder) == enemy) {
 			target = enemy.pos;
-		} else if (potPos != -1 && (state == WANDERING || Dungeon.level.distance(target, potPos) > 3))
-			this.target = target = potPos;
+		} else if (potPos != -1 && (state == WANDERING || Dungeon.level.distance(target, potPos) > 3)) {
+			if (!Dungeon.level.insideMap(potPos)){
+				potPos = -1;
+			} else {
+				this.target = target = potPos;
+			}
+		}
 		return super.getCloser( target );
 	}
 	

@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ package com.shatteredpixel.shatteredpixeldungeon.tiles;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.levels.HallsBossLevel;
+import com.shatteredpixel.shatteredpixeldungeon.levels.MiningLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.watabou.noosa.TextureFilm;
 import com.watabou.noosa.Tilemap;
@@ -107,9 +108,10 @@ public class WallBlockingTilemap extends Tilemap {
 				//- none of the remaining 5 neighbour cells are both not a wall and visible
 				
 				//if all 3 above are wall we can shortcut and just clear the cell
-				//unless one or more is a shelf, then we have to just block none
+				//unless one or more is a shelf, or we can mine, then we have to just block none
 				if (wall(cell - 1 - mapWidth) && wall(cell - mapWidth) && wall(cell + 1 - mapWidth)){
-					if (shelf(cell - 1 - mapWidth) || shelf(cell - mapWidth) || shelf(cell + 1 - mapWidth)){
+					if (shelf(cell - 1 - mapWidth) || shelf(cell - mapWidth)
+							|| shelf(cell + 1 - mapWidth) || Dungeon.level instanceof MiningLevel){
 						curr = BLOCK_NONE;
 					} else {
 						curr = CLEARED;
@@ -137,7 +139,7 @@ public class WallBlockingTilemap extends Tilemap {
 			} else {
 				
 				//Block the side of an internal wall if:
-				//- the cell above, below, or the cell itself is visible
+				//- any cells above, the one directly below, or the cell itself is visible
 				//and all of the following are NOT true:
 				//- the cell has no neighbours on that side
 				//- the top-side neighbour is visible and the side neighbour isn't a wall.
@@ -147,6 +149,8 @@ public class WallBlockingTilemap extends Tilemap {
 				curr = BLOCK_NONE;
 				
 				if (!fogHidden(cell - mapWidth)
+						|| !fogHidden(cell - mapWidth - 1)
+						|| !fogHidden(cell - mapWidth + 1)
 						|| !fogHidden(cell)
 						|| !fogHidden(cell + mapWidth)) {
 					

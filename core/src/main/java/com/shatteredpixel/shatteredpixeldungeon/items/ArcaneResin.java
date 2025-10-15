@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2022 Evan Debenham
+ * Copyright (C) 2014-2025 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,11 +25,13 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.items.bags.Bag;
 import com.shatteredpixel.shatteredpixeldungeon.items.bags.MagicalHolster;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
+import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
@@ -122,6 +124,7 @@ public class ArcaneResin extends Item {
 
 				} else {
 
+					Catalog.countUses(ArcaneResin.class, resinToUse);
 					if (resinToUse < quantity()){
 						quantity(quantity()-resinToUse);
 					} else {
@@ -150,7 +153,7 @@ public class ArcaneResin extends Item {
 		public boolean testIngredients(ArrayList<Item> ingredients) {
 			return ingredients.size() == 1
 					&& ingredients.get(0) instanceof Wand
-					&& ingredients.get(0).isIdentified()
+					&& ingredients.get(0).cursedKnown
 					&& !ingredients.get(0).cursed;
 		}
 
@@ -162,8 +165,12 @@ public class ArcaneResin extends Item {
 		@Override
 		public Item brew(ArrayList<Item> ingredients) {
 			Item result = sampleOutput(ingredients);
+			Wand w = (Wand)ingredients.get(0);
 
-			ingredients.get(0).quantity(0);
+			if (!w.levelKnown){
+				result.quantity(resinQuantity(w));
+			}
+			w.quantity(0);
 
 			return result;
 		}
@@ -171,8 +178,22 @@ public class ArcaneResin extends Item {
 		@Override
 		public Item sampleOutput(ArrayList<Item> ingredients) {
 			Wand w = (Wand)ingredients.get(0);
+
+			if (w.levelKnown){
+				return new ArcaneResin().quantity(resinQuantity(w));
+			} else {
+				return new ArcaneResin();
+			}
+		}
+
+		private int resinQuantity(Wand w){
 			int level = w.level() - w.resinBonus;
-			return new ArcaneResin().quantity(2*(level+1));
+			int quantity = 2*(level+1);
+
+			if (Dungeon.hero.heroClass != HeroClass.MAGE && Dungeon.hero.hasTalent(Talent.WAND_PRESERVATION)){
+				quantity += Dungeon.hero.pointsInTalent(Talent.WAND_PRESERVATION);
+			}
+			return quantity;
 		}
 	}
 

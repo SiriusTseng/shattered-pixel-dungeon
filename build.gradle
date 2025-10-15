@@ -6,7 +6,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.3.1'
+        classpath 'com.android.tools.build:gradle:8.11.1'
     }
 }
 
@@ -16,25 +16,25 @@ allprojects {
         appName = 'Shattered Pixel Dungeon'
         appPackageName = 'com.shatteredpixel.shatteredpixeldungeon'
 
-        appVersionCode = 668
-        appVersionName = '1.4.3'
+        appVersionCode = 877
+        appVersionName = '3.2.5'
 
-        appJavaCompatibility = JavaVersion.VERSION_1_8
+        appJavaCompatibility = JavaVersion.VERSION_11
 
-        appAndroidCompileSDK = 31
-        appAndroidMinSDK = 14
-        appAndroidTargetSDK = 31
+        appAndroidCompileSDK = 35   //Android 15
+        appAndroidMinSDK = 21       //Android 5.0
+        appAndroidTargetSDK = 35    //Android 15
 
-        gdxVersion = '1.11.0'
-        gdxControllersVersion = '2.2.3-SNAPSHOT'
-        robovmVersion = '2.3.16'
+        gdxVersion = '1.13.6-SNAPSHOT' //using snapshot as 1.13.5 has issues with Android R8
+        gdxControllersVersion = '2.2.4'
+        robovmVersion = '2.3.23'
     }
     version = appVersionName
 
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
+        maven { url 'https://central.sonatype.com/repository/maven-snapshots/' }
     }
 
 }
