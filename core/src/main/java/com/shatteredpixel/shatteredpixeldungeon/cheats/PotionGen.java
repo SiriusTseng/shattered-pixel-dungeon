@@ -1,55 +1,83 @@
 package com.shatteredpixel.shatteredpixeldungeon.cheats;
 
+import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfExperience;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfFrost;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfLevitation;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfLiquidFlame;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfMindVision;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfParalyticGas;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfPurity;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfStrength;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class PotionGen {
-    private static final LinkedHashMap<String, Class<?>> map = new LinkedHashMap<>();
+    private static final Map<String, Class<? extends Potion>> potions = new LinkedHashMap<>();
+    private static final int ITEMS_PER_PAGE = 6;
 
     public PotionGen() {
-        map.put("经验药剂", PotionOfExperience.class);
-        map.put("冰霜药剂", PotionOfFrost.class);
-        map.put("极速药剂", PotionOfHaste.class);
-        map.put("治疗药剂", PotionOfHealing.class);
-        map.put("隐形药剂", PotionOfInvisibility.class);
-        map.put("液火药剂", PotionOfLiquidFlame.class);
-        map.put("灵视药剂", PotionOfMindVision.class);
-        map.put("浮空药剂", PotionOfLevitation.class);
-        map.put("麻痹药剂", PotionOfParalyticGas.class);
-        map.put("净化药剂", PotionOfPurity.class);
-        map.put("力量药剂", PotionOfStrength.class);
-        map.put("毒气药剂", PotionOfToxicGas.class);
+        if (potions.isEmpty()) {
+            Map<String, Class<? extends Potion>> sortedPotions = new TreeMap<>();
+            for (Class<?> potionClass : Generator.Category.POTION.classes) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Class<? extends Potion> pClass = (Class<? extends Potion>) potionClass;
+                    Potion p = pClass.getDeclaredConstructor().newInstance();
+                    sortedPotions.put(p.trueName(), pClass);
+                } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+                    // Skip classes that cannot be instantiated
+                }
+            }
+            potions.putAll(sortedPotions);
+        }
     }
 
     public void show() {
-        ArrayList<String> list = new ArrayList<>(map.keySet());
+        showPage(0);
+    }
 
-        GameScene.show(new WndOptions("药剂", "请选择药剂", list.toArray(new String[0])) {
+    private void showPage(int page) {
+        ArrayList<String> allItems = new ArrayList<>(potions.keySet());
+        int totalItems = allItems.size();
+        int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE);
+
+        int start = page * ITEMS_PER_PAGE;
+        int end = Math.min(start + ITEMS_PER_PAGE, totalItems);
+
+        ArrayList<String> pageItems = new ArrayList<>(allItems.subList(start, end));
+        ArrayList<String> options = new ArrayList<>(pageItems);
+
+        String title = "药剂";
+        if (totalPages > 1) {
+            title += " (" + (page + 1) + "/" + totalPages + ")";
+        }
+
+        if (page > 0) {
+            options.add("上一页");
+        }
+        if (page < totalPages - 1) {
+            options.add("下一页");
+        }
+        options.add("取消");
+
+        GameScene.show(new WndOptions(title, "请选择药剂", options.toArray(new String[0])) {
             @Override
             protected void onSelect(int index) {
-                try {
-                    Class<?> clazz = map.get(list.get(index));
-                    Item item = (Item) clazz.getDeclaredConstructor().newInstance();
-                    item.collect();
-                } catch (Exception e) {
-                    e.printStackTrace();
+                String selectedOption = options.get(index);
+
+                if (selectedOption.equals("下一页")) {
+                    showPage(page + 1);
+                } else if (selectedOption.equals("上一页")) {
+                    showPage(page - 1);
+                } else if (!selectedOption.equals("取消")) {
+                    try {
+                        Class<?> clazz = potions.get(selectedOption);
+                        Item item = (Item) clazz.getDeclaredConstructor().newInstance();
+                        item.collect();
+                    } catch (Exception e) {
+                        // ignore
+                    }
                 }
             }
         });
