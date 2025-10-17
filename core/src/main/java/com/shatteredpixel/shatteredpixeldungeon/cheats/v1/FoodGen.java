@@ -1,6 +1,5 @@
-package com.shatteredpixel.shatteredpixeldungeon.cheats;
+package com.shatteredpixel.shatteredpixeldungeon.cheats.v1;
 
-import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.food.Berry;
 import com.shatteredpixel.shatteredpixeldungeon.items.food.Blandfruit;

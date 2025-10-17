@@ -25,7 +25,8 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
-import com.shatteredpixel.shatteredpixeldungeon.cheats.GameMaster;
+import com.shatteredpixel.shatteredpixeldungeon.cheats.v1.GameMaster;
+import com.shatteredpixel.shatteredpixeldungeon.cheats.v2.WndCheatSystem;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
@@ -116,6 +117,18 @@ public class WndGame extends Window {
 		// Cheat Button
 		GameMaster gm = new GameMaster(this);
 		addButton(gm.getEntry());
+
+		// Cheat Button
+		RedButton cheatBtn = new RedButton("作弊系统") {
+			@Override
+			protected void onClick() {
+				hide();
+				GameScene.show(new WndCheatSystem());
+			}
+		};
+		cheatBtn.icon(Icons.get(Icons.TALENT));
+//		cheatBtn.textColor(0xFF4444);
+		addButton(cheatBtn);
 
 		resize( WIDTH, pos );
 	}

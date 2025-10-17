@@ -1,8 +1,8 @@
-package com.shatteredpixel.shatteredpixeldungeon.cheats;
+package com.shatteredpixel.shatteredpixeldungeon.cheats.v1;
 
 import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
-import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.Artifact;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 
@@ -12,26 +12,24 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class ArtifactGen {
-    private static final Map<String, Class<? extends Artifact>> artifacts = new LinkedHashMap<>();
+public class ScrollGen {
+    private static final Map<String, Class<? extends Scroll>> scrolls = new LinkedHashMap<>();
     private static final int ITEMS_PER_PAGE = 6;
 
-    public ArtifactGen() {
-        if (artifacts.isEmpty()) {
-            Map<String, Class<? extends Artifact>> sortedArtifacts = new TreeMap<>();
-            for (Class<?> artifactClass : Generator.Category.ARTIFACT.classes) {
+    public ScrollGen() {
+        if (scrolls.isEmpty()) {
+            Map<String, Class<? extends Scroll>> sortedScrolls = new TreeMap<>();
+            for (Class<?> scrollClass : Generator.Category.SCROLL.classes) {
                 try {
-                    if (Artifact.class.isAssignableFrom(artifactClass)) {
-                        @SuppressWarnings("unchecked")
-                        Class<? extends Artifact> aClass = (Class<? extends Artifact>) artifactClass;
-                        Artifact a = aClass.getDeclaredConstructor().newInstance();
-                        sortedArtifacts.put(a.name(), aClass);
-                    }
+                    @SuppressWarnings("unchecked")
+                    Class<? extends Scroll> sClass = (Class<? extends Scroll>) scrollClass;
+                    Scroll s = sClass.getDeclaredConstructor().newInstance();
+                    sortedScrolls.put(s.trueName(), sClass);
                 } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
                     // Skip classes that cannot be instantiated
                 }
             }
-            artifacts.putAll(sortedArtifacts);
+            scrolls.putAll(sortedScrolls);
         }
     }
 
@@ -40,7 +38,7 @@ public class ArtifactGen {
     }
 
     private void showPage(int page) {
-        ArrayList<String> allItems = new ArrayList<>(artifacts.keySet());
+        ArrayList<String> allItems = new ArrayList<>(scrolls.keySet());
         int totalItems = allItems.size();
         int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE);
 
@@ -50,7 +48,7 @@ public class ArtifactGen {
         ArrayList<String> pageItems = new ArrayList<>(allItems.subList(start, end));
         ArrayList<String> options = new ArrayList<>(pageItems);
 
-        String title = "神器";
+        String title = "卷轴";
         if (totalPages > 1) {
             title += " (" + (page + 1) + "/" + totalPages + ")";
         }
@@ -63,7 +61,7 @@ public class ArtifactGen {
         }
         options.add("取消");
 
-        GameScene.show(new WndOptions(title, "请选择神器", options.toArray(new String[0])) {
+        GameScene.show(new WndOptions(title, "请选择卷轴", options.toArray(new String[0])) {
             @Override
             protected void onSelect(int index) {
                 String selectedOption = options.get(index);
@@ -74,11 +72,9 @@ public class ArtifactGen {
                     showPage(page - 1);
                 } else if (!selectedOption.equals("取消")) {
                     try {
-                        Class<?> clazz = artifacts.get(selectedOption);
-                        if (clazz != null) {
-                            Item item = (Item) clazz.getDeclaredConstructor().newInstance();
-                            item.collect();
-                        }
+                        Class<?> clazz = scrolls.get(selectedOption);
+                        Item item = (Item) clazz.getDeclaredConstructor().newInstance();
+                        item.collect();
                     } catch (Exception e) {
                         // ignore
                     }

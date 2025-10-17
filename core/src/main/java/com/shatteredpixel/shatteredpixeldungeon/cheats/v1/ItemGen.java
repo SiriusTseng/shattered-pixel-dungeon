@@ -1,4 +1,4 @@
-package com.shatteredpixel.shatteredpixeldungeon.cheats;
+package com.shatteredpixel.shatteredpixeldungeon.cheats.v1;
 
 import com.shatteredpixel.shatteredpixeldungeon.items.ArcaneResin;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;

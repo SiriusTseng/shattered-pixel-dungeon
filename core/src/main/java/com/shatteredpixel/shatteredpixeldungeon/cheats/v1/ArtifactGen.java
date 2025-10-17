@@ -1,8 +1,8 @@
-package com.shatteredpixel.shatteredpixeldungeon.cheats;
+package com.shatteredpixel.shatteredpixeldungeon.cheats.v1;
 
 import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.Artifact;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 
@@ -12,24 +12,26 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class PotionGen {
-    private static final Map<String, Class<? extends Potion>> potions = new LinkedHashMap<>();
+public class ArtifactGen {
+    private static final Map<String, Class<? extends Artifact>> artifacts = new LinkedHashMap<>();
     private static final int ITEMS_PER_PAGE = 6;
 
-    public PotionGen() {
-        if (potions.isEmpty()) {
-            Map<String, Class<? extends Potion>> sortedPotions = new TreeMap<>();
-            for (Class<?> potionClass : Generator.Category.POTION.classes) {
+    public ArtifactGen() {
+        if (artifacts.isEmpty()) {
+            Map<String, Class<? extends Artifact>> sortedArtifacts = new TreeMap<>();
+            for (Class<?> artifactClass : Generator.Category.ARTIFACT.classes) {
                 try {
-                    @SuppressWarnings("unchecked")
-                    Class<? extends Potion> pClass = (Class<? extends Potion>) potionClass;
-                    Potion p = pClass.getDeclaredConstructor().newInstance();
-                    sortedPotions.put(p.trueName(), pClass);
+                    if (Artifact.class.isAssignableFrom(artifactClass)) {
+                        @SuppressWarnings("unchecked")
+                        Class<? extends Artifact> aClass = (Class<? extends Artifact>) artifactClass;
+                        Artifact a = aClass.getDeclaredConstructor().newInstance();
+                        sortedArtifacts.put(a.name(), aClass);
+                    }
                 } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
                     // Skip classes that cannot be instantiated
                 }
             }
-            potions.putAll(sortedPotions);
+            artifacts.putAll(sortedArtifacts);
         }
     }
 
@@ -38,7 +40,7 @@ public class PotionGen {
     }
 
     private void showPage(int page) {
-        ArrayList<String> allItems = new ArrayList<>(potions.keySet());
+        ArrayList<String> allItems = new ArrayList<>(artifacts.keySet());
         int totalItems = allItems.size();
         int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE);
 
@@ -48,7 +50,7 @@ public class PotionGen {
         ArrayList<String> pageItems = new ArrayList<>(allItems.subList(start, end));
         ArrayList<String> options = new ArrayList<>(pageItems);
 
-        String title = "药剂";
+        String title = "神器";
         if (totalPages > 1) {
             title += " (" + (page + 1) + "/" + totalPages + ")";
         }
@@ -61,7 +63,7 @@ public class PotionGen {
         }
         options.add("取消");
 
-        GameScene.show(new WndOptions(title, "请选择药剂", options.toArray(new String[0])) {
+        GameScene.show(new WndOptions(title, "请选择神器", options.toArray(new String[0])) {
             @Override
             protected void onSelect(int index) {
                 String selectedOption = options.get(index);
@@ -72,9 +74,11 @@ public class PotionGen {
                     showPage(page - 1);
                 } else if (!selectedOption.equals("取消")) {
                     try {
-                        Class<?> clazz = potions.get(selectedOption);
-                        Item item = (Item) clazz.getDeclaredConstructor().newInstance();
-                        item.collect();
+                        Class<?> clazz = artifacts.get(selectedOption);
+                        if (clazz != null) {
+                            Item item = (Item) clazz.getDeclaredConstructor().newInstance();
+                            item.collect();
+                        }
                     } catch (Exception e) {
                         // ignore
                     }

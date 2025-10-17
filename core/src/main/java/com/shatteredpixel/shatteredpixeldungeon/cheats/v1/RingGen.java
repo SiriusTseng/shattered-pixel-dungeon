@@ -1,8 +1,8 @@
-package com.shatteredpixel.shatteredpixeldungeon.cheats;
+package com.shatteredpixel.shatteredpixeldungeon.cheats.v1;
 
 import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
-import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 
@@ -12,26 +12,26 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class ArmorGen {
-    private static final Map<String, Class<? extends Armor>> armors = new LinkedHashMap<>();
+public class RingGen {
+    private static final Map<String, Class<? extends Ring>> rings = new LinkedHashMap<>();
     private static final int ITEMS_PER_PAGE = 6;
 
-    public ArmorGen() {
-        if (armors.isEmpty()) {
-            Map<String, Class<? extends Armor>> sortedArmors = new TreeMap<>();
-            for (Class<?> armorClass : Generator.Category.ARMOR.classes) {
+    public RingGen() {
+        if (rings.isEmpty()) {
+            Map<String, Class<? extends Ring>> sortedRings = new TreeMap<>();
+            for (Class<?> ringClass : Generator.Category.RING.classes) {
                 try {
-                    if (Armor.class.isAssignableFrom(armorClass)) {
+                    if (Ring.class.isAssignableFrom(ringClass)) {
                         @SuppressWarnings("unchecked")
-                        Class<? extends Armor> aClass = (Class<? extends Armor>) armorClass;
-                        Armor a = aClass.getDeclaredConstructor().newInstance();
-                        sortedArmors.put(a.name(), aClass);
+                        Class<? extends Ring> rClass = (Class<? extends Ring>) ringClass;
+                        Ring r = rClass.getDeclaredConstructor().newInstance();
+                        sortedRings.put(r.name(), rClass);
                     }
                 } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
                     // Skip classes that cannot be instantiated
                 }
             }
-            armors.putAll(sortedArmors);
+            rings.putAll(sortedRings);
         }
     }
 
@@ -40,7 +40,7 @@ public class ArmorGen {
     }
 
     private void showPage(int page) {
-        ArrayList<String> allItems = new ArrayList<>(armors.keySet());
+        ArrayList<String> allItems = new ArrayList<>(rings.keySet());
         int totalItems = allItems.size();
         int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE);
 
@@ -50,7 +50,7 @@ public class ArmorGen {
         ArrayList<String> pageItems = new ArrayList<>(allItems.subList(start, end));
         ArrayList<String> options = new ArrayList<>(pageItems);
 
-        String title = "护甲";
+        String title = "指环";
         if (totalPages > 1) {
             title += " (" + (page + 1) + "/" + totalPages + ")";
         }
@@ -63,7 +63,7 @@ public class ArmorGen {
         }
         options.add("取消");
 
-        GameScene.show(new WndOptions(title, "请选择护甲", options.toArray(new String[0])) {
+        GameScene.show(new WndOptions(title, "请选择指环", options.toArray(new String[0])) {
             @Override
             protected void onSelect(int index) {
                 String selectedOption = options.get(index);
@@ -74,7 +74,7 @@ public class ArmorGen {
                     showPage(page - 1);
                 } else if (!selectedOption.equals("取消")) {
                     try {
-                        Class<?> clazz = armors.get(selectedOption);
+                        Class<?> clazz = rings.get(selectedOption);
                         if (clazz != null) {
                             Item item = (Item) clazz.getDeclaredConstructor().newInstance();
                             item.collect();
