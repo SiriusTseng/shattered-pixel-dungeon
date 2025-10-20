@@ -29,6 +29,9 @@ public class ItemsTab extends Component {
     private RedButton ringBtn;
     private RedButton foodBtn;
     private RedButton artifactBtn;
+    private RedButton bombBtn;
+    private RedButton stoneBtn;
+
 
     // 位置跟踪
     private float pos;
@@ -40,7 +43,7 @@ public class ItemsTab extends Component {
     @Override
     protected void createChildren() {
         // 标题
-        title = PixelScene.renderTextBlock("道具管理", 9);
+        title = PixelScene.renderTextBlock("道具管理", 11);
         title.hardlight(Window.TITLE_COLOR);
         add(title);
 
@@ -115,6 +118,24 @@ public class ItemsTab extends Component {
             }
         };
         add(artifactBtn);
+
+        // 炸弹选择按钮
+        bombBtn = new RedButton("选择炸弹") {
+            @Override
+            protected void onClick() {
+                GameScene.show(new ItemSelectionWindow(ItemClasses.BOMB, "选择炸弹"));
+            }
+        };
+        add(bombBtn);
+
+        // 符石选择按钮
+        stoneBtn = new RedButton("选择投掷武器") {
+            @Override
+            protected void onClick() {
+                GameScene.show(new ItemSelectionWindow(ItemClasses.STONE, "选择投掷武器"));
+            }
+        };
+        add(stoneBtn);
     }
 
     @Override
@@ -134,6 +155,8 @@ public class ItemsTab extends Component {
         placeButton(ringBtn);
         placeButton(foodBtn);
         placeButton(artifactBtn);
+        placeButton(bombBtn);
+        placeButton(stoneBtn);
 
         height = pos;
     }
