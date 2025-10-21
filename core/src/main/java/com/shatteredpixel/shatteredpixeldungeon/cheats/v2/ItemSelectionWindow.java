@@ -80,26 +80,7 @@ public class ItemSelectionWindow extends Window {
 
     private void generateAllItems(Class<?> itemClass) {
         allItems = new LinkedHashMap<>();
-        Class<?>[] itemClasses = null;
-
-        // 确定道具类数组
-        if (itemClass == ItemClasses.POTION) {
-            itemClasses = ItemClasses.POTION_CLASSES;
-        } else if (itemClass == ItemClasses.SCROLL) {
-            itemClasses = ItemClasses.SCROLL_CLASSES;
-        } else if (itemClass == ItemClasses.FOOD) {
-            itemClasses = ItemClasses.FOOD_CLASSES;
-        } else if (itemClass == ItemClasses.WEAPON) {
-            itemClasses = ItemClasses.ALL_WEAPON_CLASSES;
-        } else if (itemClass == ItemClasses.ARMOR) {
-            itemClasses = ItemClasses.ARMOR_CLASSES;
-        } else if (itemClass == ItemClasses.WAND) {
-            itemClasses = ItemClasses.WAND_CLASSES;
-        } else if (itemClass == ItemClasses.RING) {
-            itemClasses = ItemClasses.RING_CLASSES;
-        } else if (itemClass == ItemClasses.ARTIFACT) {
-            itemClasses = ItemClasses.ARTIFACT_CLASSES;
-        }
+        Class<?>[] itemClasses = getClasses(itemClass);
 
         if (itemClasses != null) {
             Map<String, Class<? extends Item>> sortedItems = new TreeMap<>();
@@ -120,40 +101,34 @@ public class ItemSelectionWindow extends Window {
         }
     }
 
-//    private void useGeneratorForCategory(Class<?> itemClass) {
-//        Generator.Category category = null;
-//
-//        if (itemClass == ItemClasses.WEAPON) {
-//            category = Generator.Category.WEAPON;
-//        } else if (itemClass == ItemClasses.ARMOR) {
-//            category = Generator.Category.ARMOR;
-//        } else if (itemClass == ItemClasses.WAND) {
-//            category = Generator.Category.WAND;
-//        } else if (itemClass == ItemClasses.RING) {
-//            category = Generator.Category.RING;
-//        } else if (itemClass == ItemClasses.ARTIFACT) {
-//            category = Generator.Category.ARTIFACT;
-//        }
-//
-//        if (category != null) {
-//            Map<String, Class<? extends Item>> sortedItems = new TreeMap<>();
-//            // 生成多个道具以覆盖所有可能性
-//            for (int i = 0; i < 30; i++) {
-//                Item item = Generator.random(category);
-//                if (item != null && !sortedItems.containsKey(item.name())) {
-//                    try {
-//                        Class<? extends Item> itemType = item.getClass();
-//                        // 创建新实例以获取名称
-//                        Item newItem = itemType.getDeclaredConstructor().newInstance();
-//                        sortedItems.put(newItem.trueName(), itemType);
-//                    } catch (Exception e) {
-//                        // 忽略创建失败的道具
-//                    }
-//                }
-//            }
-//            allItems.putAll(sortedItems);
-//        }
-//    }
+    private static Class<?>[] getClasses(Class<?> itemClass) {
+        Class<?>[] itemClasses = null;
+
+        // 确定道具类数组
+        if (itemClass == ItemClasses.POTION) {
+            itemClasses = ItemClasses.POTION_CLASSES;
+        } else if (itemClass == ItemClasses.SCROLL) {
+            itemClasses = ItemClasses.SCROLL_CLASSES;
+        } else if (itemClass == ItemClasses.FOOD) {
+            itemClasses = ItemClasses.FOOD_CLASSES;
+        } else if (itemClass == ItemClasses.WEAPON) {
+            itemClasses = ItemClasses.ALL_WEAPON_CLASSES;
+        } else if (itemClass == ItemClasses.ARMOR) {
+            itemClasses = ItemClasses.ARMOR_CLASSES;
+        } else if (itemClass == ItemClasses.WAND) {
+            itemClasses = ItemClasses.WAND_CLASSES;
+        } else if (itemClass == ItemClasses.RING) {
+            itemClasses = ItemClasses.RING_CLASSES;
+        } else if (itemClass == ItemClasses.ARTIFACT) {
+            itemClasses = ItemClasses.ARTIFACT_CLASSES;
+        } else if (itemClass == ItemClasses.BOMB) {
+            itemClasses = ItemClasses.BOMB_CLASSES;
+        } else if (itemClass == ItemClasses.STONE) {
+            itemClasses = ItemClasses.STONE_CLASSES;
+        }
+        return itemClasses;
+    }
+
 
     private void createComponents() {
         // 标题
